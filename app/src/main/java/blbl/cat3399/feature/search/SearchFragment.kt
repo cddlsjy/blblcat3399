@@ -511,7 +511,7 @@ class SearchFragment : Fragment(), BackPressHandler, RefreshKeyHandler {
         }
         if (!::liveAdapter.isInitialized) {
             liveAdapter =
-                LiveRoomAdapter { room ->
+                LiveRoomAdapter { _, room ->
                     if (!room.isLive) {
                         Toast.makeText(requireContext(), "未开播", Toast.LENGTH_SHORT).show()
                         return@LiveRoomAdapter

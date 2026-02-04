@@ -31,9 +31,6 @@ class LiveGridFragment : Fragment(), LivePageFocusTarget, RefreshKeyHandler {
     private var lastSpanCountContentWidthPx: Int = -1
 
     private val source: String by lazy { requireArguments().getString(ARG_SOURCE) ?: SRC_RECOMMEND }
-    private val parentAreaId: Int by lazy { requireArguments().getInt(ARG_PARENT_AREA_ID, 0) }
-    private val areaId: Int by lazy { requireArguments().getInt(ARG_AREA_ID, 0) }
-    private val title: String? by lazy { requireArguments().getString(ARG_TITLE) }
     private val enableTabFocus: Boolean by lazy { requireArguments().getBoolean(ARG_ENABLE_TAB_FOCUS, true) }
 
     private val loadedRoomIds = HashSet<Long>()
@@ -47,21 +44,27 @@ class LiveGridFragment : Fragment(), LivePageFocusTarget, RefreshKeyHandler {
     private var pendingFocusFirstCardFromContentSwitch: Boolean = false
     private var pendingFocusNextCardAfterLoadMoreFromDpad: Boolean = false
     private var pendingFocusNextCardAfterLoadMoreFromPos: Int = RecyclerView.NO_POSITION
+    private var pendingRestorePosition: Int? = null
+    private var pendingRestoreAttemptsLeft: Int = 0
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentLiveGridBinding.inflate(inflater, container, false)
-        AppLog.d("LiveGrid", "onCreateView src=$source pid=$parentAreaId title=${title.orEmpty()} t=${SystemClock.uptimeMillis()}")
+        AppLog.d("LiveGrid", "onCreateView src=$source t=${SystemClock.uptimeMillis()}")
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         if (!::adapter.isInitialized) {
             adapter =
-                LiveRoomAdapter { room ->
+                LiveRoomAdapter { position, room ->
                     if (!room.isLive) {
                         Toast.makeText(requireContext(), "未开播", Toast.LENGTH_SHORT).show()
                         return@LiveRoomAdapter
                     }
+                    // Restore focus to the clicked card after returning from LivePlayerActivity.
+                    pendingRestorePosition = position
+                    // Returning from another Activity can take a few frames before RecyclerView lays out children.
+                    pendingRestoreAttemptsLeft = 24
                     startActivity(
                         Intent(requireContext(), LivePlayerActivity::class.java)
                             .putExtra(LivePlayerActivity.EXTRA_ROOM_ID, room.roomId)
@@ -192,6 +195,7 @@ class LiveGridFragment : Fragment(), LivePageFocusTarget, RefreshKeyHandler {
         if (this::adapter.isInitialized) adapter.invalidateSizing()
         updateRecyclerSpanCountIfNeeded(force = true)
         maybeTriggerInitialLoad()
+        restoreFocusIfNeeded()
         maybeConsumePendingFocusFirstCard()
     }
 
@@ -233,7 +237,6 @@ class LiveGridFragment : Fragment(), LivePageFocusTarget, RefreshKeyHandler {
         val startAt = SystemClock.uptimeMillis()
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val areaPageSize = 30
                 val fetched =
                     when (source) {
                         SRC_FOLLOWING -> {
@@ -241,52 +244,35 @@ class LiveGridFragment : Fragment(), LivePageFocusTarget, RefreshKeyHandler {
                             if (!res.hasMore) endReached = true
                             res.items
                         }
-                        SRC_AREA -> {
-                            val list =
-                                BiliApi.liveAreaRooms(
-                                    parentAreaId = parentAreaId,
-                                    areaId = areaId,
-                                    page = page,
-                                    pageSize = areaPageSize,
-                                )
-                            if (list.isEmpty() || list.size < areaPageSize) endReached = true
-                            list
-                        }
                         else -> BiliApi.liveRecommend(page = page)
                     }
 
                 if (token != requestToken) return@launch
 
-                val filteredByArea =
-                    if (source == SRC_RECOMMEND && parentAreaId > 0) fetched.filter { it.parentAreaId == parentAreaId } else fetched
-                val filtered = filteredByArea.filter { loadedRoomIds.add(it.roomId) }
+                val filtered = fetched.filter { loadedRoomIds.add(it.roomId) }
 
                 if (filtered.isNotEmpty()) {
                     if (page == 1) adapter.submit(filtered) else adapter.append(filtered)
                 }
                 _binding?.recycler?.post {
+                    restoreFocusIfNeeded()
                     maybeConsumePendingFocusFirstCard()
                     maybeConsumePendingFocusNextCardAfterLoadMoreFromDpad()
                 }
 
                 if (source == SRC_RECOMMEND) {
-                    // Recommend endpoint can return lots of unrelated areas; keep fetching a bit when filtered empty.
-                    if (parentAreaId > 0 && filteredByArea.isEmpty()) {
-                        if (page >= 8) endReached = true
-                    } else if (fetched.isEmpty() || filtered.isEmpty() && page >= 8) {
+                    // Conservative end guard.
+                    if (fetched.isEmpty() || (filtered.isEmpty() && page >= 8)) {
                         // Conservative end guard.
                         endReached = true
                     }
-                } else if (source == SRC_AREA) {
-                    // Conservative end guard for empty-after-dedup.
-                    if (filtered.isEmpty() && page >= 8) endReached = true
                 }
 
                 page++
-                AppLog.i("LiveGrid", "load ok src=$source pid=$parentAreaId page=${page - 1} add=${filtered.size} total=${adapter.itemCount} cost=${SystemClock.uptimeMillis() - startAt}ms")
+                AppLog.i("LiveGrid", "load ok src=$source page=${page - 1} add=${filtered.size} total=${adapter.itemCount} cost=${SystemClock.uptimeMillis() - startAt}ms")
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
-                AppLog.e("LiveGrid", "load failed src=$source pid=$parentAreaId page=$page", t)
+                AppLog.e("LiveGrid", "load failed src=$source page=$page", t)
                 context?.let { Toast.makeText(it, "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show() }
             } finally {
                 if (isRefresh && token == requestToken) _binding?.swipeRefresh?.isRefreshing = false
@@ -382,6 +368,74 @@ class LiveGridFragment : Fragment(), LivePageFocusTarget, RefreshKeyHandler {
                 recycler.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
                 pendingFocusFirstCardFromTab = false
                 pendingFocusFirstCardFromContentSwitch = false
+            }
+        }
+        return true
+    }
+
+    private fun restoreFocusIfNeeded(): Boolean {
+        // Mirror the working "MyFavFoldersFragment"/"MyBangumiFollowFragment" restore pattern:
+        // keep a pending position, scrollToPosition, then requestFocus on that ViewHolder.
+        val pos = pendingRestorePosition ?: return false
+        if (_binding == null) return false
+        if (!this::adapter.isInitialized) return false
+
+        val itemCount = adapter.itemCount
+        if (pos < 0 || (itemCount > 0 && pos >= itemCount)) {
+            pendingRestorePosition = null
+            pendingRestoreAttemptsLeft = 0
+            return false
+        }
+
+        val recycler = binding.recycler
+        // Do not "give up" just because some other view currently holds focus (e.g. app menu / back button).
+        // Returning from another Activity can reset focus unexpectedly; our goal is to bring it back to the grid.
+
+        // If data isn't ready yet, keep pending. Make sure focus doesn't "disappear" completely.
+        if (itemCount <= 0) {
+            // Keep focus inside this page so the user doesn't accidentally navigate to other pages.
+            focusBackButtonIfAvailable() || focusSelectedTabIfAvailable() || recycler.requestFocus()
+            return false
+        }
+
+        // Fast-path: already laid out.
+        recycler.findViewHolderForAdapterPosition(pos)?.itemView?.let { target ->
+            if (target.requestFocus()) {
+                pendingRestorePosition = null
+                pendingRestoreAttemptsLeft = 0
+                return true
+            }
+            // requestFocus can fail briefly right after returning from another Activity; keep pending and retry.
+        }
+
+        recycler.post outerPost@{
+            if (_binding == null) return@outerPost
+            recycler.scrollToPosition(pos)
+            recycler.post innerPost@{
+                if (_binding == null) return@innerPost
+                val vh = recycler.findViewHolderForAdapterPosition(pos)
+                if (vh != null) {
+                    if (vh.itemView.requestFocus()) {
+                        pendingRestorePosition = null
+                        pendingRestoreAttemptsLeft = 0
+                        return@innerPost
+                    }
+                    // If focus request fails, keep pending and retry below.
+                }
+
+                // Still not laid out (vh == null) OR requestFocus failed; retry a few times.
+                pendingRestoreAttemptsLeft--
+                if (pendingRestoreAttemptsLeft <= 0) {
+                    // Fallback: focus something visible (prefer the first card) so focus highlight shows.
+                    recycler.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() == true ||
+                        focusBackButtonIfAvailable() ||
+                        focusSelectedTabIfAvailable() ||
+                        recycler.requestFocus()
+                    pendingRestorePosition = null
+                    pendingRestoreAttemptsLeft = 0
+                } else {
+                    recycler.postDelayed({ restoreFocusIfNeeded() }, 16L)
+                }
             }
         }
         return true
@@ -516,39 +570,13 @@ class LiveGridFragment : Fragment(), LivePageFocusTarget, RefreshKeyHandler {
 
     companion object {
         private const val ARG_SOURCE = "source"
-        private const val ARG_PARENT_AREA_ID = "parent_area_id"
-        private const val ARG_AREA_ID = "area_id"
-        private const val ARG_TITLE = "title"
         private const val ARG_ENABLE_TAB_FOCUS = "enable_tab_focus"
 
         const val SRC_RECOMMEND = "recommend"
         const val SRC_FOLLOWING = "following"
-        const val SRC_AREA = "area"
 
         fun newRecommend() = LiveGridFragment().apply { arguments = Bundle().apply { putString(ARG_SOURCE, SRC_RECOMMEND) } }
 
         fun newFollowing() = LiveGridFragment().apply { arguments = Bundle().apply { putString(ARG_SOURCE, SRC_FOLLOWING) } }
-
-        fun newArea(parentAreaId: Int, areaId: Int, title: String, enableTabFocus: Boolean = true) =
-            LiveGridFragment().apply {
-                arguments =
-                    Bundle().apply {
-                        putString(ARG_SOURCE, SRC_AREA)
-                        putInt(ARG_PARENT_AREA_ID, parentAreaId)
-                        putInt(ARG_AREA_ID, areaId)
-                        putString(ARG_TITLE, title)
-                        putBoolean(ARG_ENABLE_TAB_FOCUS, enableTabFocus)
-                    }
-            }
-
-        fun newRecommendFiltered(parentAreaId: Int, title: String) =
-            LiveGridFragment().apply {
-                arguments =
-                    Bundle().apply {
-                        putString(ARG_SOURCE, SRC_RECOMMEND)
-                        putInt(ARG_PARENT_AREA_ID, parentAreaId)
-                        putString(ARG_TITLE, title)
-                    }
-            }
     }
 }

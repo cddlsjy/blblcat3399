@@ -1,13 +1,25 @@
 package blbl.cat3399.feature.live
 
+import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.FocusFinder
 import android.view.LayoutInflater
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import blbl.cat3399.core.api.BiliApi
+import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.databinding.FragmentLiveAreaDetailBinding
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 class LiveAreaDetailFragment : Fragment() {
@@ -18,6 +30,19 @@ class LiveAreaDetailFragment : Fragment() {
     private val areaId: Int by lazy { requireArguments().getInt(ARG_AREA_ID, 0) }
     private val parentTitle: String by lazy { requireArguments().getString(ARG_PARENT_TITLE).orEmpty() }
     private val areaTitle: String by lazy { requireArguments().getString(ARG_AREA_TITLE).orEmpty() }
+
+    private lateinit var adapter: LiveRoomAdapter
+    private val loadedRoomIds = HashSet<Long>()
+    private var isLoadingMore: Boolean = false
+    private var endReached: Boolean = false
+    private var page: Int = 1
+    private var requestToken: Int = 0
+    private var lastSpanCountContentWidthPx: Int = -1
+
+    private var initialLoadTriggered: Boolean = false
+    private var pendingFocusFirstItem: Boolean = false
+    private var pendingRestorePosition: Int? = null
+    private var pendingRestoreAttemptsLeft: Int = 0
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentLiveAreaDetailBinding.inflate(inflater, container, false)
@@ -35,29 +60,122 @@ class LiveAreaDetailFragment : Fragment() {
             }
         applyBackButtonSizing()
 
-        if (savedInstanceState == null) {
-            childFragmentManager.beginTransaction()
-                .setReorderingAllowed(true)
-                .replace(
-                    binding.contentContainer.id,
-                    LiveGridFragment.newArea(
-                        parentAreaId = parentAreaId,
-                        areaId = areaId,
-                        title = areaTitle.ifBlank { parentTitle },
-                        enableTabFocus = false,
-                    ),
-                )
-                .commit()
+        if (!::adapter.isInitialized) {
+            adapter =
+                LiveRoomAdapter { position, room ->
+                    if (!room.isLive) {
+                        Toast.makeText(requireContext(), "未开播", Toast.LENGTH_SHORT).show()
+                        return@LiveRoomAdapter
+                    }
+                    pendingRestorePosition = position
+                    pendingRestoreAttemptsLeft = 24
+                    // Prioritize restoring to the clicked card after return.
+                    pendingFocusFirstItem = false
+                    startActivity(
+                        Intent(requireContext(), LivePlayerActivity::class.java)
+                            .putExtra(LivePlayerActivity.EXTRA_ROOM_ID, room.roomId)
+                            .putExtra(LivePlayerActivity.EXTRA_TITLE, room.title)
+                            .putExtra(LivePlayerActivity.EXTRA_UNAME, room.uname),
+                    )
+                }
+        }
 
-            // Match "MyFavFolderDetail": enter detail then focus first content card automatically.
-            binding.contentContainer.post {
-                if (_binding == null || !isAdded) return@post
-                runCatching { childFragmentManager.executePendingTransactions() }
-                val page = childFragmentManager.findFragmentById(binding.contentContainer.id)
-                (page as? LivePageFocusTarget)?.requestFocusFirstCardFromContentSwitch()
-                    ?: (childFragmentManager.fragments.firstOrNull { it is LivePageFocusTarget } as? LivePageFocusTarget)
-                        ?.requestFocusFirstCardFromContentSwitch()
-            }
+        binding.recycler.adapter = adapter
+        binding.recycler.setHasFixedSize(true)
+        binding.recycler.layoutManager = GridLayoutManager(requireContext(), spanCountForWidth())
+        (binding.recycler.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)?.supportsChangeAnimations = false
+
+        binding.recycler.clearOnScrollListeners()
+        binding.recycler.addOnScrollListener(
+            object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                    if (dy <= 0) return
+                    if (isLoadingMore || endReached) return
+                    val lm = recyclerView.layoutManager as? GridLayoutManager ?: return
+                    val lastVisible = lm.findLastVisibleItemPosition()
+                    val total = adapter.itemCount
+                    if (total <= 0) return
+                    if (total - lastVisible - 1 <= 8) loadNextPage()
+                }
+            },
+        )
+
+        binding.recycler.addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
+            val widthChanged = (right - left) != (oldRight - oldLeft)
+            if (widthChanged) updateRecyclerSpanCountIfNeeded()
+        }
+        binding.recycler.post { updateRecyclerSpanCountIfNeeded() }
+
+        // Keep focus inside this detail page and provide a consistent edge behavior, similar to favorites detail.
+        binding.recycler.addOnChildAttachStateChangeListener(
+            object : RecyclerView.OnChildAttachStateChangeListener {
+                override fun onChildViewAttachedToWindow(view: View) {
+                    view.setOnKeyListener { v, keyCode, event ->
+                        if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                        val itemView = v
+                        when (keyCode) {
+                            KeyEvent.KEYCODE_DPAD_UP -> {
+                                if (!binding.recycler.canScrollVertically(-1)) {
+                                    val lm = binding.recycler.layoutManager as? GridLayoutManager ?: return@setOnKeyListener false
+                                    val holder = binding.recycler.findContainingViewHolder(itemView) ?: return@setOnKeyListener false
+                                    val pos =
+                                        holder.bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }
+                                            ?: return@setOnKeyListener false
+                                    if (pos < lm.spanCount) {
+                                        binding.btnBack.requestFocus()
+                                        return@setOnKeyListener true
+                                    }
+                                }
+                                false
+                            }
+
+                            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                val next = FocusFinder.getInstance().findNextFocus(binding.recycler, itemView, View.FOCUS_LEFT)
+                                if (next == null || !isDescendantOf(next, binding.recycler)) {
+                                    binding.btnBack.requestFocus()
+                                    return@setOnKeyListener true
+                                }
+                                false
+                            }
+
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                val next = FocusFinder.getInstance().findNextFocus(binding.recycler, itemView, View.FOCUS_RIGHT)
+                                if (next == null || !isDescendantOf(next, binding.recycler)) {
+                                    return@setOnKeyListener true
+                                }
+                                false
+                            }
+
+                            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                val next = FocusFinder.getInstance().findNextFocus(binding.recycler, itemView, View.FOCUS_DOWN)
+                                if (next == null || !isDescendantOf(next, binding.recycler)) {
+                                    if (binding.recycler.canScrollVertically(1)) {
+                                        val dy = (itemView.height * 0.8f).toInt().coerceAtLeast(1)
+                                        binding.recycler.scrollBy(0, dy)
+                                        return@setOnKeyListener true
+                                    }
+                                    if (!endReached) loadNextPage()
+                                    return@setOnKeyListener true
+                                }
+                                false
+                            }
+
+                            else -> false
+                        }
+                    }
+                }
+
+                override fun onChildViewDetachedFromWindow(view: View) {
+                    view.setOnKeyListener(null)
+                }
+            },
+        )
+
+        binding.swipeRefresh.setOnRefreshListener { resetAndLoad() }
+
+        if (savedInstanceState == null) {
+            pendingFocusFirstItem = true
+            binding.recycler.requestFocus()
         }
     }
 
@@ -69,6 +187,20 @@ class LiveAreaDetailFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         applyBackButtonSizing()
+        updateRecyclerSpanCountIfNeeded(force = true)
+        maybeTriggerInitialLoad()
+        // Make sure focus stays within this detail page on return.
+        binding.root.post {
+            if (_binding == null || !isAdded) return@post
+            val cur = activity?.currentFocus
+            if (cur == null || !isDescendantOf(cur, binding.root)) {
+                binding.btnBack.requestFocus()
+            }
+        }
+        binding.recycler.post {
+            restoreFocusIfNeeded()
+            maybeFocusFirstItem()
+        }
     }
 
     private fun applyBackButtonSizing() {
@@ -114,5 +246,167 @@ class LiveAreaDetailFragment : Fragment() {
                         putString(ARG_AREA_TITLE, areaTitle)
                     }
             }
+    }
+
+    private fun maybeTriggerInitialLoad() {
+        if (initialLoadTriggered) return
+        if (!this::adapter.isInitialized) return
+        if (adapter.itemCount != 0) {
+            initialLoadTriggered = true
+            return
+        }
+        if (binding.swipeRefresh.isRefreshing) return
+        binding.swipeRefresh.isRefreshing = true
+        resetAndLoad()
+        initialLoadTriggered = true
+    }
+
+    private fun spanCountForWidth(): Int {
+        val override = BiliClient.prefs.gridSpanCount
+        if (override > 0) return override.coerceIn(1, 6)
+        val dm = resources.displayMetrics
+        val widthDp = dm.widthPixels / dm.density
+        return autoSpanCountForWidthDp(widthDp)
+    }
+
+    private fun autoSpanCountForWidthDp(widthDp: Float): Int {
+        val override = BiliClient.prefs.gridSpanCount
+        if (override > 0) return override.coerceIn(1, 6)
+        val uiScale = UiScale.factor(requireContext())
+        val minCardWidthDp = 210f * uiScale
+        val auto = (widthDp / minCardWidthDp).toInt()
+        return auto.coerceIn(2, 6)
+    }
+
+    private fun updateRecyclerSpanCountIfNeeded(force: Boolean = false) {
+        val b = _binding ?: return
+        val recycler = b.recycler
+        val lm = recycler.layoutManager as? GridLayoutManager ?: return
+        val contentWidthPx = (recycler.width - recycler.paddingLeft - recycler.paddingRight).coerceAtLeast(0)
+        if (contentWidthPx <= 0) return
+        if (!force && contentWidthPx == lastSpanCountContentWidthPx) return
+        lastSpanCountContentWidthPx = contentWidthPx
+
+        val dm = resources.displayMetrics
+        val contentWidthDp = contentWidthPx / dm.density
+        val span = autoSpanCountForWidthDp(contentWidthDp)
+        if (span != lm.spanCount) lm.spanCount = span
+    }
+
+    private fun resetAndLoad() {
+        loadedRoomIds.clear()
+        endReached = false
+        isLoadingMore = false
+        page = 1
+        requestToken++
+        adapter.submit(emptyList())
+        loadNextPage(isRefresh = true)
+    }
+
+    private fun loadNextPage(isRefresh: Boolean = false) {
+        if (isLoadingMore || endReached) return
+        val token = requestToken
+        isLoadingMore = true
+        val startAt = SystemClock.uptimeMillis()
+        lifecycleScope.launch {
+            try {
+                val pageSize = 30
+                val fetched =
+                    BiliApi.liveAreaRooms(
+                        parentAreaId = parentAreaId,
+                        areaId = areaId,
+                        page = page,
+                        pageSize = pageSize,
+                    )
+                if (token != requestToken) return@launch
+                if (fetched.isEmpty() || fetched.size < pageSize) endReached = true
+                val filtered = fetched.filter { loadedRoomIds.add(it.roomId) }
+                if (filtered.isNotEmpty()) {
+                    if (page == 1) adapter.submit(filtered) else adapter.append(filtered)
+                }
+                restoreFocusIfNeeded()
+                maybeFocusFirstItem()
+                page++
+                AppLog.i("LiveAreaDetail", "load ok pid=$parentAreaId aid=$areaId page=${page - 1} add=${filtered.size} total=${adapter.itemCount} cost=${SystemClock.uptimeMillis() - startAt}ms")
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
+                AppLog.e("LiveAreaDetail", "load failed pid=$parentAreaId aid=$areaId page=$page", t)
+                context?.let { Toast.makeText(it, "加载失败，可查看 Logcat(标签 BLBL)", Toast.LENGTH_SHORT).show() }
+            } finally {
+                if (isRefresh && token == requestToken) _binding?.swipeRefresh?.isRefreshing = false
+                isLoadingMore = false
+            }
+        }
+    }
+
+    private fun restoreFocusIfNeeded() {
+        val pos = pendingRestorePosition ?: return
+        val b = _binding ?: return
+        if (!::adapter.isInitialized) return
+        if (pos < 0 || pos >= adapter.itemCount) return
+        val recycler = b.recycler
+
+        recycler.post outerPost@{
+            if (_binding == null) return@outerPost
+            recycler.scrollToPosition(pos)
+            recycler.post innerPost@{
+                if (_binding == null) return@innerPost
+                val vh = recycler.findViewHolderForAdapterPosition(pos)
+                if (vh != null && vh.itemView.requestFocus()) {
+                    pendingRestorePosition = null
+                    pendingRestoreAttemptsLeft = 0
+                    return@innerPost
+                }
+
+                pendingRestoreAttemptsLeft--
+                if (pendingRestoreAttemptsLeft <= 0) {
+                    recycler.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() == true || b.btnBack.requestFocus()
+                    pendingRestorePosition = null
+                    pendingRestoreAttemptsLeft = 0
+                } else {
+                    recycler.postDelayed({ restoreFocusIfNeeded() }, 16L)
+                }
+            }
+        }
+    }
+
+    private fun maybeFocusFirstItem() {
+        if (pendingRestorePosition != null) return
+        if (!pendingFocusFirstItem) return
+        val b = _binding ?: return
+        if (!::adapter.isInitialized) return
+        if (adapter.itemCount <= 0) return
+
+        val recycler = b.recycler
+        val focused = activity?.currentFocus
+        if (focused != null && isDescendantOf(focused, recycler)) {
+            pendingFocusFirstItem = false
+            return
+        }
+
+        recycler.post outerPost@{
+            if (_binding == null) return@outerPost
+            val vh = recycler.findViewHolderForAdapterPosition(0)
+            if (vh != null) {
+                vh.itemView.requestFocus()
+                pendingFocusFirstItem = false
+                return@outerPost
+            }
+            recycler.scrollToPosition(0)
+            recycler.post innerPost@{
+                if (_binding == null) return@innerPost
+                recycler.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() == true || b.btnBack.requestFocus()
+                pendingFocusFirstItem = false
+            }
+        }
+    }
+
+    private fun isDescendantOf(view: View, ancestor: View): Boolean {
+        var current: View? = view
+        while (current != null) {
+            if (current == ancestor) return true
+            current = current.parent as? View
+        }
+        return false
     }
 }

@@ -170,7 +170,9 @@ class LivePlayerActivity : BaseActivity() {
         binding.root.requestFocus()
 
         setupSettingsPanel()
-        setControlsVisible(true)
+        // Live default: keep OSD hidden. User brings it up via D-pad / OK / Menu keys.
+        binding.settingsPanel.visibility = View.GONE
+        setControlsVisible(false)
         updateDanmakuButton()
 
         lifecycleScope.launch { loadAndPlay(initial = true) }
@@ -293,6 +295,8 @@ class LivePlayerActivity : BaseActivity() {
                 if (binding.settingsPanel.visibility == View.VISIBLE) return super.dispatchKeyEvent(event)
                 if (!controlsVisible) {
                     setControlsVisible(true)
+                    // Align with UP/DOWN/CENTER behavior: show OSD and move focus to controls in one press.
+                    focusFirstControl()
                     return true
                 }
                 if (!hasControlsFocus()) {

@@ -16,7 +16,7 @@ import blbl.cat3399.databinding.ItemLiveCardBinding
 import kotlin.math.roundToInt
 
 class LiveRoomAdapter(
-    private val onClick: (LiveRoomCard) -> Unit,
+    private val onClick: (position: Int, room: LiveRoomCard) -> Unit,
 ) : RecyclerView.Adapter<LiveRoomAdapter.Vh>() {
     private val items = ArrayList<LiveRoomCard>()
 
@@ -56,7 +56,7 @@ class LiveRoomAdapter(
     class Vh(private val binding: ItemLiveCardBinding) : RecyclerView.ViewHolder(binding.root) {
         private var lastUiScale: Float? = null
 
-        fun bind(item: LiveRoomCard, onClick: (LiveRoomCard) -> Unit) {
+        fun bind(item: LiveRoomCard, onClick: (position: Int, room: LiveRoomCard) -> Unit) {
             val uiScale = UiScale.factor(binding.root.context)
             if (lastUiScale != uiScale) {
                 applySizing(uiScale)
@@ -80,7 +80,10 @@ class LiveRoomAdapter(
             binding.tvOnline.text = if (item.isLive) Format.count(item.online) else "-"
             binding.tvBadge.visibility = if (item.isLive) View.VISIBLE else View.GONE
             ImageLoader.loadInto(binding.ivCover, ImageUrl.cover(item.coverUrl))
-            binding.root.setOnClickListener { onClick(item) }
+            binding.root.setOnClickListener {
+                val pos = bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION } ?: return@setOnClickListener
+                onClick(pos, item)
+            }
         }
 
         private fun applySizing(uiScale: Float) {
