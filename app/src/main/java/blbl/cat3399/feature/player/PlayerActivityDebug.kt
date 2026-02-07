@@ -14,6 +14,40 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+internal class PlayerDebugMetrics {
+    var cdnHost: String? = null
+    var videoTransferHost: String? = null
+    var audioTransferHost: String? = null
+    var videoDecoderName: String? = null
+    var videoInputWidth: Int? = null
+    var videoInputHeight: Int? = null
+    var videoInputFps: Float? = null
+    var droppedFramesTotal: Long = 0L
+    var rebufferCount: Int = 0
+    var lastPlaybackState: Int = Player.STATE_IDLE
+    var renderFps: Float? = null
+    var renderFpsLastAtMs: Long? = null
+    var renderedFramesLastCount: Int? = null
+    var renderedFramesLastAtMs: Long? = null
+
+    fun reset() {
+        cdnHost = null
+        videoTransferHost = null
+        audioTransferHost = null
+        videoDecoderName = null
+        videoInputWidth = null
+        videoInputHeight = null
+        videoInputFps = null
+        droppedFramesTotal = 0L
+        rebufferCount = 0
+        lastPlaybackState = Player.STATE_IDLE
+        renderFps = null
+        renderFpsLastAtMs = null
+        renderedFramesLastCount = null
+        renderedFramesLastAtMs = null
+    }
+}
+
 internal fun PlayerActivity.updateDebugOverlay() {
     val enabled = session.debugEnabled
     binding.tvDebug.visibility = if (enabled) View.VISIBLE else View.GONE

@@ -11,9 +11,12 @@ class PlayerSettingsAdapter(
     private val onClick: (SettingItem) -> Unit,
 ) : ListAdapter<PlayerSettingsAdapter.SettingItem, PlayerSettingsAdapter.Vh>(DIFF) {
     data class SettingItem(
+        val key: String,
         val title: String,
         val subtitle: String,
-    )
+    ) {
+        constructor(title: String, subtitle: String) : this(key = title, title = title, subtitle = subtitle)
+    }
 
     init {
         setHasStableIds(true)
@@ -31,7 +34,7 @@ class PlayerSettingsAdapter(
     override fun onBindViewHolder(holder: Vh, position: Int) = holder.bind(getItem(position), onClick)
 
     override fun getItemId(position: Int): Long {
-        return getItem(position).title.hashCode().toLong()
+        return getItem(position).key.hashCode().toLong()
     }
 
     fun indexOfTitle(title: String): Int {
@@ -43,7 +46,7 @@ class PlayerSettingsAdapter(
         private val DIFF =
             object : DiffUtil.ItemCallback<SettingItem>() {
                 override fun areItemsTheSame(oldItem: SettingItem, newItem: SettingItem): Boolean {
-                    return oldItem.title == newItem.title
+                    return oldItem.key == newItem.key
                 }
 
                 override fun areContentsTheSame(oldItem: SettingItem, newItem: SettingItem): Boolean {

@@ -83,34 +83,34 @@ class PlayerActivity : BaseActivity() {
     internal var player: ExoPlayer? = null
     internal var debugJob: kotlinx.coroutines.Job? = null
     internal val debug = PlayerDebugMetrics()
-    private var progressJob: kotlinx.coroutines.Job? = null
-    private var autoResumeJob: kotlinx.coroutines.Job? = null
-    private var autoResumeHintTimeoutJob: kotlinx.coroutines.Job? = null
-    private var autoResumeHintVisible: Boolean = false
-    private var autoSkipFetchJob: kotlinx.coroutines.Job? = null
-    private var autoSkipHintVisible: Boolean = false
+    internal var progressJob: kotlinx.coroutines.Job? = null
+    internal var autoResumeJob: kotlinx.coroutines.Job? = null
+    internal var autoResumeHintTimeoutJob: kotlinx.coroutines.Job? = null
+    internal var autoResumeHintVisible: Boolean = false
+    internal var autoSkipFetchJob: kotlinx.coroutines.Job? = null
+    internal var autoSkipHintVisible: Boolean = false
     private var reportProgressJob: kotlinx.coroutines.Job? = null
-    private var autoHideJob: kotlinx.coroutines.Job? = null
-    private var seekOsdHideJob: kotlinx.coroutines.Job? = null
-    private var holdSeekJob: kotlinx.coroutines.Job? = null
-    private var seekHintJob: kotlinx.coroutines.Job? = null
-    private var keyScrubEndJob: kotlinx.coroutines.Job? = null
-    private var scrubbing: Boolean = false
-    private var lastInteractionAtMs: Long = 0L
+    internal var autoHideJob: kotlinx.coroutines.Job? = null
+    internal var seekOsdHideJob: kotlinx.coroutines.Job? = null
+    internal var holdSeekJob: kotlinx.coroutines.Job? = null
+    internal var seekHintJob: kotlinx.coroutines.Job? = null
+    internal var keyScrubEndJob: kotlinx.coroutines.Job? = null
+    internal var scrubbing: Boolean = false
+    internal var lastInteractionAtMs: Long = 0L
     private var finishOnBackKeyUp: Boolean = false
-    private var holdPrevSpeed: Float = 1.0f
-    private var holdPrevPlayWhenReady: Boolean = false
-    private var holdScrubPreviewPosMs: Long? = null
-    private var loadJob: kotlinx.coroutines.Job? = null
-    private var lastEndedActionAtMs: Long = 0L
-    private var playbackUncaughtHandler: CoroutineExceptionHandler? = null
-    private var actionLiked: Boolean = false
-    private var actionCoinCount: Int = 0
-    private var actionFavored: Boolean = false
-    private var likeActionJob: kotlinx.coroutines.Job? = null
-    private var coinActionJob: kotlinx.coroutines.Job? = null
-    private var favDialogJob: kotlinx.coroutines.Job? = null
-    private var favApplyJob: kotlinx.coroutines.Job? = null
+    internal var holdPrevSpeed: Float = 1.0f
+    internal var holdPrevPlayWhenReady: Boolean = false
+    internal var holdScrubPreviewPosMs: Long? = null
+    internal var loadJob: kotlinx.coroutines.Job? = null
+    internal var lastEndedActionAtMs: Long = 0L
+    internal var playbackUncaughtHandler: CoroutineExceptionHandler? = null
+    internal var actionLiked: Boolean = false
+    internal var actionCoinCount: Int = 0
+    internal var actionFavored: Boolean = false
+    internal var likeActionJob: kotlinx.coroutines.Job? = null
+    internal var coinActionJob: kotlinx.coroutines.Job? = null
+    internal var favDialogJob: kotlinx.coroutines.Job? = null
+    internal var favApplyJob: kotlinx.coroutines.Job? = null
 
     private val doubleBackToExit by lazy {
         DoubleBackToExitHandler(context = this, windowMs = BACK_DOUBLE_PRESS_WINDOW_MS) {
@@ -118,53 +118,53 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    private var smartSeekDirection: Int = 0
-    private var smartSeekStreak: Int = 0
-    private var smartSeekLastAtMs: Long = 0L
-    private var smartSeekTotalMs: Long = 0L
+    internal var smartSeekDirection: Int = 0
+    internal var smartSeekStreak: Int = 0
+    internal var smartSeekLastAtMs: Long = 0L
+    internal var smartSeekTotalMs: Long = 0L
     private var tapSeekActiveDirection: Int = 0
     private var tapSeekActiveUntilMs: Long = 0L
-    private var keySeekHoldDetectJob: kotlinx.coroutines.Job? = null
-    private var keySeekPendingKeyCode: Int = 0
-    private var keySeekPendingDirection: Int = 0
+    internal var keySeekHoldDetectJob: kotlinx.coroutines.Job? = null
+    internal var keySeekPendingKeyCode: Int = 0
+    internal var keySeekPendingDirection: Int = 0
     internal var riskControlBypassHintShown: Boolean = false
-    private var seekOsdToken: Long = 0L
-    private var transientSeekOsdVisible: Boolean = false
-    private var bottomBarFullConstraints: ConstraintSet? = null
-    private var bottomBarSeekConstraints: ConstraintSet? = null
+    internal var seekOsdToken: Long = 0L
+    internal var transientSeekOsdVisible: Boolean = false
+    internal var bottomBarFullConstraints: ConstraintSet? = null
+    internal var bottomBarSeekConstraints: ConstraintSet? = null
 
-    private enum class OsdMode {
+    internal enum class OsdMode {
         Hidden,
         Full,
         SeekTransient,
     }
 
-    private var osdMode: OsdMode = OsdMode.Hidden
+    internal var osdMode: OsdMode = OsdMode.Hidden
 
     internal var currentBvid: String = ""
     internal var currentCid: Long = -1L
-    private var currentEpId: Long? = null
-    private var currentAid: Long? = null
-    private var currentUpMid: Long = 0L
-    private var currentUpName: String? = null
-    private var currentUpAvatar: String? = null
+    internal var currentEpId: Long? = null
+    internal var currentAid: Long? = null
+    internal var currentUpMid: Long = 0L
+    internal var currentUpName: String? = null
+    internal var currentUpAvatar: String? = null
 
-    private var playlistToken: String? = null
-    private var playlistSource: String? = null
-    private var playlistItems: List<PlayerPlaylistItem> = emptyList()
-    private var playlistIndex: Int = -1
-    private var playlistUgcSeasonId: Long? = null
-    private var playlistUgcSeasonTitle: String? = null
+    internal var playlistToken: String? = null
+    internal var playlistSource: String? = null
+    internal var playlistItems: List<PlayerPlaylistItem> = emptyList()
+    internal var playlistIndex: Int = -1
+    internal var playlistUgcSeasonId: Long? = null
+    internal var playlistUgcSeasonTitle: String? = null
     internal lateinit var session: PlayerSessionSettings
 
-    private data class RelatedVideosCache(
+    internal data class RelatedVideosCache(
         val bvid: String,
         val items: List<VideoCard>,
     )
 
-    private var relatedVideosCache: RelatedVideosCache? = null
-    private var relatedVideosFetchJob: kotlinx.coroutines.Job? = null
-    private var relatedVideosFetchToken: Int = 0
+    internal var relatedVideosCache: RelatedVideosCache? = null
+    internal var relatedVideosFetchJob: kotlinx.coroutines.Job? = null
+    internal var relatedVideosFetchToken: Int = 0
     internal var subtitleAvailabilityKnown: Boolean = false
     internal var subtitleAvailable: Boolean = false
     internal var subtitleConfig: MediaItem.SubtitleConfiguration? = null
@@ -173,29 +173,29 @@ class PlayerActivity : BaseActivity() {
     internal var lastAvailableAudioIds: List<Int> = emptyList()
     private var danmakuSegmentSizeMs: Int = DANMAKU_DEFAULT_SEGMENT_MS
     private var danmakuSegmentTotal: Int = 0
-    private var danmakuShield: DanmakuShield? = null
-    private val danmakuLoadedSegments = LinkedHashSet<Int>()
+    internal var danmakuShield: DanmakuShield? = null
+    internal val danmakuLoadedSegments = LinkedHashSet<Int>()
     private val danmakuLoadingSegments = HashSet<Int>()
-    private val danmakuSegmentItems = LinkedHashMap<Int, List<blbl.cat3399.core.model.Danmaku>>()
+    internal val danmakuSegmentItems = LinkedHashMap<Int, List<blbl.cat3399.core.model.Danmaku>>()
     private var danmakuLoadJob: kotlinx.coroutines.Job? = null
     private var danmakuLoadGeneration: Int = 0
     private var lastDanmakuPrefetchAtMs: Long = 0L
-    private var playbackConstraints: PlaybackConstraints = PlaybackConstraints()
-    private var decodeFallbackAttempted: Boolean = false
-    private var lastPickedDash: Playable.Dash? = null
-    private var autoResumeToken: Int = 0
-    private var autoResumeCancelledByUser: Boolean = false
-    private var autoSkipToken: Int = 0
-    private var autoSkipSegments: List<SkipSegment> = emptyList()
-    private val autoSkipHandledSegmentIds = HashSet<String>()
-    private var autoSkipPending: PendingAutoSkip? = null
-    private var autoSkipMarkersDirty: Boolean = true
-    private var autoSkipMarkersDurationMs: Long = -1L
-    private var autoSkipMarkersShown: Boolean = false
-    private var reportToken: Int = 0
-    private var lastReportAtMs: Long = 0L
-    private var lastReportedProgressSec: Long = -1L
-    private var currentViewDurationMs: Long? = null
+    internal var playbackConstraints: PlaybackConstraints = PlaybackConstraints()
+    internal var decodeFallbackAttempted: Boolean = false
+    internal var lastPickedDash: Playable.Dash? = null
+    internal var autoResumeToken: Int = 0
+    internal var autoResumeCancelledByUser: Boolean = false
+    internal var autoSkipToken: Int = 0
+    internal var autoSkipSegments: List<SkipSegment> = emptyList()
+    internal val autoSkipHandledSegmentIds = HashSet<String>()
+    internal var autoSkipPending: PendingAutoSkip? = null
+    internal var autoSkipMarkersDirty: Boolean = true
+    internal var autoSkipMarkersDurationMs: Long = -1L
+    internal var autoSkipMarkersShown: Boolean = false
+    internal var reportToken: Int = 0
+    internal var lastReportAtMs: Long = 0L
+    internal var lastReportedProgressSec: Long = -1L
+    internal var currentViewDurationMs: Long? = null
     private var exitCleanupRequested: Boolean = false
     private var exitCleanupReason: String? = null
     private var decoderReleaseRequestedOnStopReason: String? = null
@@ -204,7 +204,7 @@ class PlayerActivity : BaseActivity() {
     private var resumeExpiredUrlReloadArmed: Boolean = false
     private var resumeExpiredUrlReloadAttempted: Boolean = false
 
-    private class PlaybackTrace(private val id: String) {
+    internal class PlaybackTrace(private val id: String) {
         private val startMs = SystemClock.elapsedRealtime()
         private var lastMs = startMs
 
@@ -219,8 +219,8 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    private var trace: PlaybackTrace? = null
-    private var traceFirstFrameLogged: Boolean = false
+    internal var trace: PlaybackTrace? = null
+    internal var traceFirstFrameLogged: Boolean = false
 
     private fun requestDecoderReleaseOnStop(reason: String) {
         if (reason.isBlank()) return
@@ -308,32 +308,6 @@ class PlayerActivity : BaseActivity() {
             }
         }
     }
-
-    private data class ResumeCandidate(
-        val rawTime: Long,
-        val rawTimeUnitHint: RawTimeUnitHint,
-        val source: String,
-    )
-
-    private enum class RawTimeUnitHint {
-        UNKNOWN,
-        SECONDS_LIKELY,
-        MILLIS_LIKELY,
-    }
-
-    private data class SkipSegment(
-        val id: String,
-        val startMs: Long,
-        val endMs: Long,
-        val category: String?,
-        val source: String,
-    )
-
-    private data class PendingAutoSkip(
-        val token: Int,
-        val segment: SkipSegment,
-        val dueAtElapsedMs: Long,
-    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -553,33 +527,7 @@ class PlayerActivity : BaseActivity() {
             }
         })
 
-        val settingsAdapter = PlayerSettingsAdapter { item ->
-            when (item.title) {
-                "分辨率" -> showResolutionDialog()
-                "音轨" -> showAudioDialog()
-                "视频编码" -> showCodecDialog()
-                "播放速度" -> showSpeedDialog()
-                "播放模式" -> showPlaybackModeDialog()
-                "字幕语言" -> showSubtitleLangDialog()
-                "字幕字体大小" -> showSubtitleTextSizeDialog()
-                "弹幕透明度" -> showDanmakuOpacityDialog()
-                "弹幕字体大小" -> showDanmakuTextSizeDialog()
-                "弹幕速度" -> showDanmakuSpeedDialog()
-                "弹幕区域" -> showDanmakuAreaDialog()
-                "调试信息" -> {
-                    session = session.copy(debugEnabled = !session.debugEnabled)
-                    updateDebugOverlay()
-                    (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-                }
-                "底部常驻进度条" -> {
-                    val appPrefs = BiliClient.prefs
-                    appPrefs.playerPersistentBottomProgressEnabled = !appPrefs.playerPersistentBottomProgressEnabled
-                    updatePersistentBottomProgressBarVisibility()
-                    (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-                }
-                else -> Toast.makeText(this, "暂未实现：${item.title}", Toast.LENGTH_SHORT).show()
-            }
-        }
+        val settingsAdapter = PlayerSettingsAdapter { item -> handleSettingsItemClick(item) }
         binding.recyclerSettings.adapter = settingsAdapter
         binding.recyclerSettings.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
         binding.recyclerSettings.addOnChildAttachStateChangeListener(
@@ -636,768 +584,12 @@ class PlayerActivity : BaseActivity() {
         )
     }
 
-    private data class PlayFetchResult(
+    internal data class PlayFetchResult(
         val json: JSONObject,
         val playable: Playable,
     )
 
-    private fun updatePlaylistControls() {
-        val hasPlaylist = playlistItems.isNotEmpty() && playlistIndex in playlistItems.indices
-        val canSwitch = playlistItems.size >= 2 && playlistIndex in playlistItems.indices
-
-        run {
-            val alpha = if (canSwitch) 1.0f else 0.35f
-            binding.btnPrev.isEnabled = canSwitch
-            binding.btnNext.isEnabled = canSwitch
-            binding.btnPrev.alpha = alpha
-            binding.btnNext.alpha = alpha
-        }
-
-        binding.btnPlaylist.visibility = if (hasPlaylist) View.VISIBLE else View.GONE
-        binding.btnPlaylist.isEnabled = hasPlaylist
-        binding.btnPlaylist.alpha = if (hasPlaylist) 1.0f else 0.35f
-    }
-
-    private fun updateUpButton() {
-        val enabled = currentUpMid > 0L
-        val alpha = if (enabled) 1.0f else 0.35f
-        binding.btnUp.isEnabled = enabled
-        binding.btnUp.alpha = alpha
-    }
-
-    private fun resolvedPlaybackMode(): String {
-        val prefs = BiliClient.prefs
-        return session.playbackModeOverride ?: prefs.playerPlaybackMode
-    }
-
-    private fun playbackModeLabel(code: String): String = when (code) {
-        AppPrefs.PLAYER_PLAYBACK_MODE_LOOP_ONE -> "循环当前"
-        AppPrefs.PLAYER_PLAYBACK_MODE_NEXT -> "播放下一个"
-        AppPrefs.PLAYER_PLAYBACK_MODE_RECOMMEND -> "播放推荐视频"
-        AppPrefs.PLAYER_PLAYBACK_MODE_EXIT -> "退出播放器"
-        else -> "什么都不做"
-    }
-
-    private fun playbackModeSubtitle(): String {
-        return playbackModeLabel(resolvedPlaybackMode())
-    }
-
-    private fun applyPlaybackMode(exo: ExoPlayer) {
-        exo.repeatMode =
-            when (resolvedPlaybackMode()) {
-                AppPrefs.PLAYER_PLAYBACK_MODE_LOOP_ONE -> Player.REPEAT_MODE_ONE
-                else -> Player.REPEAT_MODE_OFF
-            }
-    }
-
-    private fun showPlaybackModeDialog() {
-        val exo = player ?: return
-        val items = listOf(
-            "循环当前",
-            "播放下一个",
-            "播放推荐视频",
-            "什么都不做",
-            "退出播放器",
-        )
-        val currentLabel = playbackModeLabel(resolvedPlaybackMode())
-        val checked = items.indexOf(currentLabel).coerceAtLeast(0)
-        SingleChoiceDialog.show(
-            context = this,
-            title = "播放模式（本次播放）",
-            items = items,
-            checkedIndex = checked,
-            negativeText = "取消",
-            neutralText = "默认",
-            onNeutral = {
-                session = session.copy(playbackModeOverride = null)
-                applyPlaybackMode(exo)
-                refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
-            },
-        ) { which, _ ->
-            val chosen = items.getOrNull(which).orEmpty()
-            session =
-                when {
-                    chosen.startsWith("循环") -> session.copy(playbackModeOverride = AppPrefs.PLAYER_PLAYBACK_MODE_LOOP_ONE)
-                    chosen.startsWith("播放下一个") -> session.copy(playbackModeOverride = AppPrefs.PLAYER_PLAYBACK_MODE_NEXT)
-                    chosen.startsWith("播放推荐") -> session.copy(playbackModeOverride = AppPrefs.PLAYER_PLAYBACK_MODE_RECOMMEND)
-                    chosen.startsWith("退出") -> session.copy(playbackModeOverride = AppPrefs.PLAYER_PLAYBACK_MODE_EXIT)
-                    else -> session.copy(playbackModeOverride = AppPrefs.PLAYER_PLAYBACK_MODE_NONE)
-                }
-            applyPlaybackMode(exo)
-            refreshSettings(binding.recyclerSettings.adapter as PlayerSettingsAdapter)
-        }
-    }
-
-    private fun showPlaylistDialog() {
-        val list = playlistItems
-        if (list.isEmpty() || playlistIndex !in list.indices) {
-            Toast.makeText(this, "暂无播放列表", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val title =
-            playlistUgcSeasonTitle?.let { "合集：$it" }
-                ?: if (isMultiPagePlaylist(list, currentBvid)) "分P" else "播放列表"
-        val labels =
-            list.mapIndexed { index, item ->
-                item.title?.trim()?.takeIf { it.isNotBlank() }
-                    ?: "视频 ${index + 1}"
-            }
-
-        SingleChoiceDialog.show(
-            context = this,
-            title = title,
-            items = labels,
-            checkedIndex = playlistIndex,
-            negativeText = "关闭",
-        ) { which, _ ->
-            if (which != playlistIndex) playPlaylistIndex(which)
-        }
-    }
-
-    private fun showRecommendDialog() {
-        val requestBvid = currentBvid.trim()
-        if (requestBvid.isBlank()) {
-            Toast.makeText(this, "缺少 bvid", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val cached = relatedVideosCache?.takeIf { it.bvid == requestBvid }?.items.orEmpty()
-        if (cached.isNotEmpty()) {
-            showRecommendDialog(items = cached)
-            return
-        }
-
-        if (relatedVideosFetchJob?.isActive == true) {
-            Toast.makeText(this, "推荐视频加载中…", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val token = ++relatedVideosFetchToken
-        relatedVideosFetchJob =
-            lifecycleScope.launch {
-                try {
-                    val list =
-                        withContext(Dispatchers.IO) {
-                            BiliApi.archiveRelated(bvid = requestBvid, aid = currentAid)
-                        }
-                    if (token != relatedVideosFetchToken) return@launch
-                    if (currentBvid.trim() != requestBvid) return@launch
-
-                    relatedVideosCache = RelatedVideosCache(bvid = requestBvid, items = list)
-                    if (list.isEmpty()) {
-                        Toast.makeText(this@PlayerActivity, "暂无推荐视频", Toast.LENGTH_SHORT).show()
-                        return@launch
-                    }
-                    showRecommendDialog(items = list)
-                } catch (t: Throwable) {
-                    if (t is CancellationException) return@launch
-                    val e = t as? BiliApiException
-                    val msg = e?.apiMessage?.takeIf { it.isNotBlank() } ?: (t.message ?: "加载推荐视频失败")
-                    Toast.makeText(this@PlayerActivity, msg, Toast.LENGTH_SHORT).show()
-                } finally {
-                    if (token == relatedVideosFetchToken) relatedVideosFetchJob = null
-                }
-            }
-    }
-
-    private fun showRecommendDialog(items: List<VideoCard>) {
-        val labels =
-            items.mapIndexed { index, item ->
-                item.title.trim().takeIf { it.isNotBlank() } ?: "视频 ${index + 1}"
-            }
-        SingleChoiceDialog.show(
-            context = this,
-            title = "推荐视频",
-            items = labels,
-            checkedIndex = 0,
-            negativeText = "关闭",
-            onNegative = { binding.btnRecommend.post { binding.btnRecommend.requestFocus() } },
-        ) { which, _ ->
-            val picked = items.getOrNull(which) ?: return@show
-            val bvid = picked.bvid.trim()
-            if (bvid.isBlank()) return@show
-            startPlayback(
-                bvid = bvid,
-                cidExtra = picked.cid?.takeIf { it > 0 },
-                epIdExtra = null,
-                aidExtra = null,
-                initialTitle = picked.title.takeIf { it.isNotBlank() },
-            )
-            setControlsVisible(true)
-            binding.btnRecommend.post { binding.btnRecommend.requestFocus() }
-        }
-    }
-
-    private fun shouldKeepExternalPlaylistFixed(): Boolean {
-        if (playlistToken.isNullOrBlank()) return false
-        val src = playlistSource?.trim().orEmpty()
-        if (src.isBlank()) return false
-        // When launching from "My" pages (favorites / watch later), keep the original list
-        // so switching videos stays within that page instead of being overridden by multi-page or ugc season.
-        return src == "MyToView" || src.startsWith("MyFavFolderDetail:")
-    }
-
-    private suspend fun maybeOverridePlaylistWithUgcSeason(viewData: JSONObject, bvid: String) {
-        if (shouldKeepExternalPlaylistFixed()) return
-        val ugcSeason = viewData.optJSONObject("ugc_season") ?: return
-        val seasonId = ugcSeason.optLong("id").takeIf { it > 0 } ?: return
-        val seasonTitle = ugcSeason.optString("title", "").trim().takeIf { it.isNotBlank() }
-
-        fun apply(items: List<PlayerPlaylistItem>, index: Int) {
-            if (items.isEmpty() || index !in items.indices) return
-            playlistToken?.let(PlayerPlaylistStore::remove)
-            playlistToken = null
-            playlistSource = null
-            playlistItems = items
-            playlistIndex = index
-            playlistUgcSeasonId = seasonId
-            playlistUgcSeasonTitle = seasonTitle
-            updatePlaylistControls()
-        }
-
-        val aid = currentAid
-        val cid = currentCid.takeIf { it > 0 }
-
-        val itemsFromView = parseUgcSeasonPlaylistFromView(ugcSeason)
-        val idxFromView = pickPlaylistIndexForCurrentMedia(itemsFromView, bvid = bvid, aid = aid, cid = cid)
-        if (idxFromView >= 0) {
-            apply(itemsFromView, idxFromView)
-            return
-        }
-
-        val mid =
-            ugcSeason.optLong("mid").takeIf { it > 0 }
-                ?: viewData.optJSONObject("owner")?.optLong("mid")?.takeIf { it > 0 }
-                ?: return
-
-        val json =
-            withContext(Dispatchers.IO) {
-                runCatching { BiliApi.seasonsArchivesList(mid = mid, seasonId = seasonId, pageSize = 200) }.getOrNull()
-            } ?: return
-        val itemsFromApi = parseUgcSeasonPlaylistFromArchivesList(json)
-        val idxFromApi = pickPlaylistIndexForCurrentMedia(itemsFromApi, bvid = bvid, aid = aid, cid = cid)
-        if (idxFromApi >= 0) apply(itemsFromApi, idxFromApi)
-    }
-
-    private fun maybeOverridePlaylistWithMultiPage(viewData: JSONObject, bvid: String) {
-        if (shouldKeepExternalPlaylistFixed()) return
-        if (playlistUgcSeasonId != null) return
-        val pages = viewData.optJSONArray("pages") ?: return
-        if (pages.length() <= 1) return
-
-        val aid = currentAid ?: viewData.optLong("aid").takeIf { it > 0 }
-        val cid = currentCid.takeIf { it > 0 }
-
-        fun apply(items: List<PlayerPlaylistItem>, index: Int) {
-            if (items.isEmpty() || index !in items.indices) return
-            playlistToken?.let(PlayerPlaylistStore::remove)
-            playlistToken = null
-            playlistSource = null
-            playlistItems = items
-            playlistIndex = index
-            updatePlaylistControls()
-        }
-
-        val itemsFromView = parseMultiPagePlaylistFromView(viewData, bvid = bvid, aid = aid)
-        if (itemsFromView.size <= 1) return
-        val idx = pickPlaylistIndexForCurrentMedia(itemsFromView, bvid = bvid, aid = aid, cid = cid)
-        val safeIndex = if (idx in itemsFromView.indices) idx else 0
-        apply(itemsFromView, safeIndex)
-    }
-
-    private fun handlePlaybackEnded(exo: ExoPlayer) {
-        val now = SystemClock.uptimeMillis()
-        if (now - lastEndedActionAtMs < 350) return
-        lastEndedActionAtMs = now
-
-        when (resolvedPlaybackMode()) {
-            AppPrefs.PLAYER_PLAYBACK_MODE_LOOP_ONE -> {
-                exo.seekTo(0)
-                exo.playWhenReady = true
-                exo.play()
-            }
-
-            AppPrefs.PLAYER_PLAYBACK_MODE_NEXT -> {
-                playNext(userInitiated = false)
-            }
-
-            AppPrefs.PLAYER_PLAYBACK_MODE_RECOMMEND -> {
-                playRecommendedNext(userInitiated = false)
-            }
-
-            AppPrefs.PLAYER_PLAYBACK_MODE_EXIT -> {
-                finish()
-            }
-
-            else -> Unit
-        }
-    }
-
-    private fun pickRecommendedVideo(items: List<VideoCard>, excludeBvid: String): VideoCard? {
-        val safeExclude = excludeBvid.trim()
-        return items.firstOrNull { it.bvid.isNotBlank() && it.bvid != safeExclude }
-            ?: items.firstOrNull { it.bvid.isNotBlank() }
-    }
-
-    private fun playRecommendedNext(userInitiated: Boolean) {
-        val requestBvid = currentBvid.trim()
-        if (requestBvid.isBlank()) {
-            playNext(userInitiated = userInitiated)
-            return
-        }
-
-        val cached = relatedVideosCache?.takeIf { it.bvid == requestBvid }?.items.orEmpty()
-        val cachedPicked = pickRecommendedVideo(cached, excludeBvid = requestBvid)
-        if (cachedPicked != null) {
-            startPlayback(
-                bvid = cachedPicked.bvid,
-                cidExtra = cachedPicked.cid?.takeIf { it > 0 },
-                epIdExtra = null,
-                aidExtra = null,
-                initialTitle = cachedPicked.title.takeIf { it.isNotBlank() },
-            )
-            return
-        }
-
-        val activeJob = relatedVideosFetchJob
-        if (activeJob?.isActive == true) {
-            lifecycleScope.launch {
-                activeJob.join()
-                if (currentBvid.trim() != requestBvid) return@launch
-
-                val refreshed = relatedVideosCache?.takeIf { it.bvid == requestBvid }?.items.orEmpty()
-                val picked = pickRecommendedVideo(refreshed, excludeBvid = requestBvid)
-                if (picked != null) {
-                    startPlayback(
-                        bvid = picked.bvid,
-                        cidExtra = picked.cid?.takeIf { it > 0 },
-                        epIdExtra = null,
-                        aidExtra = null,
-                        initialTitle = picked.title.takeIf { it.isNotBlank() },
-                    )
-                } else {
-                    if (userInitiated) Toast.makeText(this@PlayerActivity, "暂无推荐视频", Toast.LENGTH_SHORT).show()
-                    playNext(userInitiated = userInitiated)
-                }
-            }
-            return
-        }
-
-        val token = ++relatedVideosFetchToken
-        relatedVideosFetchJob =
-            lifecycleScope.launch {
-                try {
-                    val list =
-                        withContext(Dispatchers.IO) {
-                            BiliApi.archiveRelated(bvid = requestBvid, aid = currentAid)
-                        }
-                    if (token != relatedVideosFetchToken) return@launch
-                    if (currentBvid.trim() != requestBvid) return@launch
-
-                    relatedVideosCache = RelatedVideosCache(bvid = requestBvid, items = list)
-                    val picked = pickRecommendedVideo(list, excludeBvid = requestBvid)
-                    if (picked == null) {
-                        if (userInitiated) Toast.makeText(this@PlayerActivity, "暂无推荐视频", Toast.LENGTH_SHORT).show()
-                        playNext(userInitiated = userInitiated)
-                        return@launch
-                    }
-
-                    startPlayback(
-                        bvid = picked.bvid,
-                        cidExtra = picked.cid?.takeIf { it > 0 },
-                        epIdExtra = null,
-                        aidExtra = null,
-                        initialTitle = picked.title.takeIf { it.isNotBlank() },
-                    )
-                } catch (t: Throwable) {
-                    if (t is CancellationException) return@launch
-                    if (userInitiated) {
-                        val e = t as? BiliApiException
-                        val msg = e?.apiMessage?.takeIf { it.isNotBlank() } ?: (t.message ?: "加载推荐视频失败")
-                        Toast.makeText(this@PlayerActivity, msg, Toast.LENGTH_SHORT).show()
-                    }
-                    playNext(userInitiated = userInitiated)
-                } finally {
-                    if (token == relatedVideosFetchToken) relatedVideosFetchJob = null
-                }
-            }
-    }
-
-    private fun playNext(userInitiated: Boolean) {
-        val list = playlistItems
-        if (list.isEmpty() || playlistIndex !in list.indices) {
-            if (userInitiated) Toast.makeText(this, "暂无下一个视频", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (list.size == 1) {
-            val exo = player ?: return
-            exo.seekTo(0)
-            exo.playWhenReady = true
-            exo.play()
-            return
-        }
-        val next = (playlistIndex + 1) % list.size
-        playPlaylistIndex(next)
-    }
-
-    private fun playPrev(userInitiated: Boolean) {
-        val list = playlistItems
-        if (list.isEmpty() || playlistIndex !in list.indices) {
-            if (userInitiated) Toast.makeText(this, "暂无上一个视频", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (list.size == 1) {
-            val exo = player ?: return
-            exo.seekTo(0)
-            exo.playWhenReady = true
-            exo.play()
-            return
-        }
-        val prev = (playlistIndex - 1 + list.size) % list.size
-        playPlaylistIndex(prev)
-    }
-
-    private fun playPlaylistIndex(index: Int) {
-        val list = playlistItems
-        val item = list.getOrNull(index) ?: return
-        if (item.bvid.isBlank() && (item.aid ?: 0L) <= 0L) return
-
-        // Avoid pointless reload when list has only one item.
-        if (index == playlistIndex) {
-            val exo = player ?: return
-            exo.seekTo(0)
-            exo.playWhenReady = true
-            exo.play()
-            return
-        }
-
-        playlistIndex = index.coerceIn(0, list.lastIndex)
-        playlistToken?.let { PlayerPlaylistStore.updateIndex(it, playlistIndex) }
-        updatePlaylistControls()
-        startPlayback(
-            bvid = item.bvid,
-            cidExtra = item.cid?.takeIf { it > 0 },
-            epIdExtra = item.epId?.takeIf { it > 0 },
-            aidExtra = item.aid?.takeIf { it > 0 },
-            initialTitle = item.title,
-        )
-    }
-
-    private fun resetPlaybackStateForNewMedia(exo: ExoPlayer) {
-        traceFirstFrameLogged = false
-        lastAvailableQns = emptyList()
-        lastAvailableAudioIds = emptyList()
-        session = session.copy(actualQn = 0)
-        session = session.copy(actualAudioId = 0)
-        currentViewDurationMs = null
-        debug.reset()
-        subtitleAvailabilityKnown = false
-        subtitleAvailable = false
-        subtitleConfig = null
-        subtitleItems = emptyList()
-        currentUpMid = 0L
-        currentUpName = null
-        currentUpAvatar = null
-        danmakuShield = null
-        cancelDanmakuLoading(reason = "new_media")
-        danmakuLoadedSegments.clear()
-        danmakuSegmentItems.clear()
-        binding.danmakuView.setDanmakus(emptyList())
-        binding.danmakuView.notifySeek(0L)
-
-        likeActionJob?.cancel()
-        likeActionJob = null
-        coinActionJob?.cancel()
-        coinActionJob = null
-        favDialogJob?.cancel()
-        favDialogJob = null
-        favApplyJob?.cancel()
-        favApplyJob = null
-        actionLiked = false
-        actionCoinCount = 0
-        actionFavored = false
-        updateActionButtonsUi()
-
-        relatedVideosFetchJob?.cancel()
-        relatedVideosFetchJob = null
-        relatedVideosFetchToken++
-        relatedVideosCache = null
-
-        playbackConstraints = PlaybackConstraints()
-        decodeFallbackAttempted = false
-        lastPickedDash = null
-        exo.stop()
-        applySubtitleEnabled(exo)
-        applyPlaybackMode(exo)
-        updateSubtitleButton()
-        updateDanmakuButton()
-        updateUpButton()
-        (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-    }
-
-    private fun startPlayback(
-        bvid: String?,
-        cidExtra: Long?,
-        epIdExtra: Long?,
-        aidExtra: Long?,
-        initialTitle: String?,
-    ) {
-        val exo = player ?: return
-        val safeBvid = bvid?.trim().orEmpty()
-        val safeAid = aidExtra?.takeIf { it > 0 }
-        if (safeBvid.isBlank() && safeAid == null) return
-
-        cancelPendingAutoResume(reason = "new_media")
-        autoResumeToken++
-        autoResumeCancelledByUser = false
-        cancelPendingAutoSkip(reason = "new_media", markIgnored = false)
-        autoSkipFetchJob?.cancel()
-        autoSkipFetchJob = null
-        autoSkipSegments = emptyList()
-        autoSkipHandledSegmentIds.clear()
-        autoSkipPending = null
-        binding.seekProgress.clearSegments()
-        binding.progressPersistentBottom.clearSegments()
-        autoSkipMarkersDirty = true
-        autoSkipMarkersDurationMs = -1L
-        autoSkipMarkersShown = false
-        autoSkipToken++
-        stopReportProgressLoop(flush = false, reason = "new_media")
-        reportToken++
-        lastReportAtMs = 0L
-        lastReportedProgressSec = -1L
-
-        loadJob?.cancel()
-        loadJob = null
-
-        currentBvid = safeBvid
-        currentEpId = epIdExtra
-        currentAid = safeAid
-        currentCid = -1L
-
-        trace =
-            PlaybackTrace(
-                buildString {
-                    val token = safeBvid.takeLast(8).ifBlank { safeAid?.toString(16) ?: "unknown" }
-                    append(token)
-                    append('-')
-                    append((System.currentTimeMillis() and 0xFFFF).toString(16))
-                },
-        )
-
-        binding.tvTitle.text = initialTitle?.takeIf { it.isNotBlank() } ?: "-"
-        binding.tvOnline.text = "-人正在观看"
-        binding.tvViewCount.text = "-"
-        binding.llViewMeta.visibility = View.VISIBLE
-        binding.tvPubdate.text = ""
-        binding.tvPubdate.visibility = View.GONE
-        resetPlaybackStateForNewMedia(exo)
-
-        updatePlaylistControls()
-
-        val handler =
-            playbackUncaughtHandler
-                ?: CoroutineExceptionHandler { _, t ->
-                    AppLog.e("Player", "uncaught", t)
-                    Toast.makeText(this@PlayerActivity, "播放失败：${t.message}", Toast.LENGTH_LONG).show()
-                    finish()
-                }
-
-        loadJob =
-        lifecycleScope.launch(handler) {
-            try {
-                trace?.log("view:start")
-                val viewJson =
-                    async(Dispatchers.IO) {
-                        runCatching {
-                            if (safeBvid.isNotBlank()) {
-                                BiliApi.view(safeBvid)
-                            } else {
-                                BiliApi.view(safeAid ?: 0L)
-                            }
-                        }.getOrNull()
-                    }
-                val viewData = viewJson.await()?.optJSONObject("data") ?: JSONObject()
-                trace?.log("view:done")
-                val title = viewData.optString("title", "")
-                if (title.isNotBlank()) binding.tvTitle.text = title
-                currentViewDurationMs = viewData.optLong("duration", -1L).takeIf { it > 0 }?.times(1000L)
-                applyUpInfo(viewData)
-                applyTitleMeta(viewData)
-
-                val resolvedBvid =
-                    viewData.optString("bvid", "").trim().takeIf { it.isNotBlank() }
-                        ?: safeBvid
-                if (resolvedBvid.isNotBlank()) currentBvid = resolvedBvid
-
-                val cid = cidExtra ?: viewData.optLong("cid").takeIf { it > 0 } ?: error("cid missing")
-                val aid = viewData.optLong("aid").takeIf { it > 0 }
-                currentAid = currentAid ?: aid ?: safeAid
-                currentCid = cid
-                AppLog.i("Player", "start bvid=$resolvedBvid cid=$cid")
-                trace?.log("cid:resolved", "cid=$cid aid=${aid ?: -1}")
-
-                playlistUgcSeasonId = null
-                playlistUgcSeasonTitle = null
-                maybeOverridePlaylistWithUgcSeason(viewData, bvid = resolvedBvid)
-                maybeOverridePlaylistWithMultiPage(viewData, bvid = resolvedBvid)
-
-                requestOnlineWatchingText(bvid = resolvedBvid, cid = cid)
-
-                // Apply per-video default QN based on video orientation.
-                // See bilibili view API: data.dimension / pages[].dimension (width/height/rotate).
-                run {
-                    val prefs = BiliClient.prefs
-
-                    var dim: JSONObject? = null
-                    val pages = viewData.optJSONArray("pages")
-                    if (pages != null) {
-                        for (i in 0 until pages.length()) {
-                            val p = pages.optJSONObject(i) ?: continue
-                            if (p.optLong("cid") != cid) continue
-                            dim = p.optJSONObject("dimension")
-                            if (dim != null) break
-                        }
-                    }
-                    dim = dim ?: viewData.optJSONObject("dimension")
-
-                    val width = dim?.optInt("width", 0) ?: 0
-                    val height = dim?.optInt("height", 0) ?: 0
-                    val rotate = dim?.optInt("rotate", 0) ?: 0
-                    val (effectiveW, effectiveH) =
-                        if (rotate == 1) {
-                            height to width
-                        } else {
-                            width to height
-                        }
-
-                    val isPortraitVideo = (effectiveW > 0 && effectiveH > 0 && effectiveH > effectiveW)
-                    val preferredQn = if (isPortraitVideo) prefs.playerPreferredQnPortrait else prefs.playerPreferredQn
-                    if (session.preferredQn != preferredQn) {
-                        session = session.copy(preferredQn = preferredQn)
-                    }
-                }
-
-                    val playJob =
-                        async {
-                            val (qn, fnval) = playUrlParamsForSession()
-                            trace?.log("playurl:start", "qn=$qn fnval=$fnval")
-                            playbackConstraints = PlaybackConstraints()
-                            decodeFallbackAttempted = false
-                            lastPickedDash = null
-                            loadPlayableWithTryLookFallback(
-                                bvid = resolvedBvid,
-                                aid = currentAid,
-                                cid = cid,
-                                epId = currentEpId,
-                                qn = qn,
-                                fnval = fnval,
-                                constraints = playbackConstraints,
-                            ).also { trace?.log("playurl:done") }
-                        }
-                    val dmJob =
-                        async(Dispatchers.IO) {
-                            trace?.log("danmakuMeta:start")
-                            prepareDanmakuMeta(cid, currentAid ?: aid, trace)
-                                .also { trace?.log("danmakuMeta:done", "segTotal=${it.segmentTotal} segMs=${it.segmentSizeMs}") }
-                        }
-                    val subJob =
-                        async(Dispatchers.IO) {
-                            trace?.log("subtitle:start")
-                            prepareSubtitleConfig(viewData, resolvedBvid, cid, trace)
-                                .also { trace?.log("subtitle:done", "ok=${it != null}") }
-                        }
-
-                    trace?.log("playurl:await")
-                    val (playJson, playable) = playJob.await()
-                    trace?.log("playurl:awaitDone")
-                    showRiskControlBypassHintIfNeeded(playJson)
-                    lastAvailableQns = parseDashVideoQnList(playJson)
-                    lastAvailableAudioIds = parseDashAudioIdList(playJson, constraints = playbackConstraints)
-                    trace?.log("subtitle:await")
-                    subtitleConfig = subJob.await()
-                    trace?.log("subtitle:awaitDone", "ok=${subtitleConfig != null}")
-                    subtitleAvailabilityKnown = true
-                    subtitleAvailable = subtitleConfig != null
-                    (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-                    applySubtitleEnabled(exo)
-
-                    trace?.log("exo:setMediaSource:start")
-                    when (playable) {
-                        is Playable.Dash -> {
-                            lastPickedDash = playable
-                            debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
-	                            AppLog.i(
-	                                "Player",
-	                                "picked DASH qn=${playable.qn} codecid=${playable.codecid} dv=${playable.isDolbyVision} a=${playable.audioKind}(${playable.audioId}) video=${playable.videoUrl.take(40)}",
-	                            )
-	                            val videoFactory = createCdnFactory(DebugStreamKind.VIDEO, urlCandidates = playable.videoUrlCandidates)
-	                            val audioFactory = createCdnFactory(DebugStreamKind.AUDIO, urlCandidates = playable.audioUrlCandidates)
-	                            exo.setMediaSource(buildMerged(videoFactory, audioFactory, playable.videoUrl, playable.audioUrl, subtitleConfig))
-	                            applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
-	                            applyAudioFallbackIfNeeded(requestedAudioId = session.targetAudioId, actualAudioId = playable.audioId)
-	                        }
-
-                        is Playable.VideoOnly -> {
-                            lastPickedDash = null
-                            session = session.copy(actualAudioId = 0)
-                            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-                            debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
-	                            AppLog.i(
-	                                "Player",
-	                                "picked VideoOnly qn=${playable.qn} codecid=${playable.codecid} dv=${playable.isDolbyVision} video=${playable.videoUrl.take(40)}",
-	                            )
-	                            val mainFactory = createCdnFactory(DebugStreamKind.MAIN, urlCandidates = playable.videoUrlCandidates)
-	                            exo.setMediaSource(buildProgressive(mainFactory, playable.videoUrl, subtitleConfig))
-	                            applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
-	                        }
-
-                        is Playable.Progressive -> {
-                            lastPickedDash = null
-	                            session = session.copy(actualAudioId = 0)
-	                            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-	                            debug.cdnHost = runCatching { Uri.parse(playable.url).host }.getOrNull()
-	                            AppLog.i("Player", "picked Progressive url=${playable.url.take(60)}")
-	                            val mainFactory = createCdnFactory(DebugStreamKind.MAIN, urlCandidates = playable.urlCandidates)
-	                            exo.setMediaSource(buildProgressive(mainFactory, playable.url, subtitleConfig))
-	                        }
-	                    }
-                    trace?.log("exo:setMediaSource:done")
-                    trace?.log("exo:prepare")
-                    exo.prepare()
-                    trace?.log("exo:playWhenReady")
-                    exo.playWhenReady = true
-                    updateSubtitleButton()
-                    maybeScheduleAutoResume(
-                        playJson = playJson,
-                        bvid = resolvedBvid,
-                        cid = cid,
-                        playbackToken = autoResumeToken,
-                    )
-                    maybeStartAutoSkipSegments(
-                        playJson = playJson,
-                        bvid = resolvedBvid,
-                        cid = cid,
-                        playbackToken = autoSkipToken,
-                    )
-
-                    trace?.log("danmakuMeta:await")
-                    val dmMeta = dmJob.await()
-                    trace?.log("danmakuMeta:awaitDone")
-                    applyDanmakuMeta(dmMeta)
-                    requestDanmakuSegmentsForPosition(exo.currentPosition.coerceAtLeast(0L), immediate = true)
-                } catch (t: Throwable) {
-                    if (t is CancellationException) return@launch
-                    AppLog.e("Player", "start failed", t)
-                    if (!handlePlayUrlErrorIfNeeded(t)) {
-                        Toast.makeText(this@PlayerActivity, "加载播放信息失败：${t.message}", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
-    }
-
-    private fun requestOnlineWatchingText(bvid: String, cid: Long) {
+    internal fun requestOnlineWatchingText(bvid: String, cid: Long) {
         // Must not crash the player: always swallow any network/parse errors.
         binding.tvOnline.text = "-人正在观看"
         lifecycleScope.launch {
@@ -1527,7 +719,7 @@ class PlayerActivity : BaseActivity() {
         return !hasAnyPlayableUrl(playJson)
     }
 
-    private suspend fun loadPlayableWithTryLookFallback(
+    internal suspend fun loadPlayableWithTryLookFallback(
         bvid: String,
         aid: Long?,
         cid: Long,
@@ -2074,7 +1266,7 @@ class PlayerActivity : BaseActivity() {
         startProgressLoop()
     }
 
-    private fun applyUpInfo(viewData: JSONObject) {
+    internal fun applyUpInfo(viewData: JSONObject) {
         val owner =
             viewData.optJSONObject("owner")
                 ?: viewData.optJSONObject("up_info")
@@ -2085,7 +1277,7 @@ class PlayerActivity : BaseActivity() {
         updateUpButton()
     }
 
-    private fun applyTitleMeta(viewData: JSONObject) {
+    internal fun applyTitleMeta(viewData: JSONObject) {
         val viewCount =
             viewData
                 .optJSONObject("stat")
@@ -2103,1175 +1295,6 @@ class PlayerActivity : BaseActivity() {
         val pubDateText = pubDateSec?.let { BlblFormat.pubDateText(it) }.orEmpty()
         binding.tvPubdate.text = pubDateText
         binding.tvPubdate.visibility = if (pubDateText.isNotBlank()) View.VISIBLE else View.GONE
-    }
-
-    private fun seekRelative(deltaMs: Long) {
-        seekRelative(deltaMs, danmakuImmediate = true)
-    }
-
-    private fun seekRelative(deltaMs: Long, danmakuImmediate: Boolean) {
-        val exo = player ?: return
-        val duration = exo.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
-        val next = (exo.currentPosition + deltaMs).coerceIn(0L, duration)
-        exo.seekTo(next)
-        requestDanmakuSegmentsForPosition(next, immediate = danmakuImmediate)
-    }
-
-    private fun startProgressLoop() {
-        progressJob?.cancel()
-        progressJob = lifecycleScope.launch {
-            while (isActive) {
-                updateProgressUi()
-                delay(250)
-            }
-        }
-    }
-
-    private fun toggleControls() {
-        val willShow = osdMode == OsdMode.Hidden
-        if (!willShow) {
-            binding.settingsPanel.visibility = View.GONE
-        }
-        setControlsVisible(willShow)
-    }
-
-    private fun setControlsVisible(visible: Boolean) {
-        val show = visible || binding.settingsPanel.visibility == View.VISIBLE
-        seekOsdHideJob?.cancel()
-        seekOsdHideJob = null
-        seekOsdToken = 0L
-        transientSeekOsdVisible = false
-        osdMode = if (show) OsdMode.Full else OsdMode.Hidden
-
-        binding.controlsRow.visibility = if (show) View.VISIBLE else View.GONE
-        binding.tvTime.visibility = if (show) View.VISIBLE else View.GONE
-        binding.topBar.visibility = if (show) View.VISIBLE else View.GONE
-        binding.bottomBar.visibility = if (show) View.VISIBLE else View.GONE
-        if (show) applyBottomBarFullLayout()
-        updatePersistentBottomProgressBarVisibility()
-        if (visible) noteUserInteraction() else autoHideJob?.cancel()
-    }
-
-    private fun showSeekOsd() {
-        if (binding.settingsPanel.visibility == View.VISIBLE) return
-        if (osdMode == OsdMode.Full) {
-            // Full OSD already has the progress bar; keep it alive.
-            noteUserInteraction()
-            return
-        }
-
-        val exo = player
-        if (exo != null) {
-            val duration = exo.duration.takeIf { it > 0 } ?: currentViewDurationMs ?: 0L
-            // During hold-scrub we may have a preview position that should always win.
-            // Do NOT gate on `scrubbing` here: other scrub-related flows may temporarily toggle it,
-            // which would cause the OSD progress bar to jump between preview and actual position.
-            val pos = (holdScrubPreviewPosMs ?: exo.currentPosition).coerceAtLeast(0L)
-            val bufPos = exo.bufferedPosition.coerceAtLeast(0L)
-            showSeekOsd(posMs = pos, durationMs = duration, bufferedPosMs = bufPos)
-            return
-        }
-
-        transientSeekOsdVisible = true
-        updatePersistentBottomProgressBarVisibility()
-        scheduleHideSeekOsd()
-    }
-
-    private fun showSeekOsd(posMs: Long, durationMs: Long, bufferedPosMs: Long) {
-        if (binding.settingsPanel.visibility == View.VISIBLE) return
-        val duration = durationMs.coerceAtLeast(0L)
-        val pos = posMs.coerceAtLeast(0L)
-        val bufPos = bufferedPosMs.coerceAtLeast(0L)
-
-        if (osdMode == OsdMode.Full) {
-            // Full OSD: update the real SeekBar + time (useful for hold-scrub preview).
-            binding.tvTime.text = "${formatHms(pos)} / ${formatHms(duration)}"
-            val enabled = duration > 0L
-            binding.seekProgress.isEnabled = enabled
-            if (enabled) {
-                val bufferedProgress =
-                    ((bufPos.toDouble() / duration.toDouble()) * SEEK_MAX)
-                        .toInt()
-                        .coerceIn(0, SEEK_MAX)
-                val pNow = ((pos.toDouble() / duration.toDouble()) * SEEK_MAX).toInt().coerceIn(0, SEEK_MAX)
-                binding.seekProgress.secondaryProgress = bufferedProgress
-                binding.seekProgress.progress = pNow
-            }
-            noteUserInteraction()
-            return
-        }
-
-        binding.tvSeekOsdTime.text = "${formatHms(pos)} / ${formatHms(duration)}"
-
-        val enabled = duration > 0L
-        binding.progressSeekOsd.isEnabled = enabled
-        if (enabled) {
-            val bufferedProgress =
-                ((bufPos.toDouble() / duration.toDouble()) * SEEK_MAX)
-                    .toInt()
-                    .coerceIn(0, SEEK_MAX)
-            val pNow = ((pos.toDouble() / duration.toDouble()) * SEEK_MAX).toInt().coerceIn(0, SEEK_MAX)
-            binding.progressSeekOsd.secondaryProgress = bufferedProgress
-            binding.progressSeekOsd.progress = pNow
-        } else {
-            binding.progressSeekOsd.secondaryProgress = 0
-            binding.progressSeekOsd.progress = 0
-        }
-
-        transientSeekOsdVisible = true
-        updatePersistentBottomProgressBarVisibility()
-        scheduleHideSeekOsd()
-    }
-
-    private fun ensureBottomBarConstraintSets() {
-        if (bottomBarFullConstraints != null && bottomBarSeekConstraints != null) return
-        bottomBarFullConstraints =
-            ConstraintSet().also { set ->
-                set.clone(binding.bottomBar)
-                set.setVisibility(R.id.controls_row, View.VISIBLE)
-                set.setVisibility(R.id.tv_time, View.VISIBLE)
-            }
-        bottomBarSeekConstraints =
-            ConstraintSet().also { set ->
-                set.clone(binding.bottomBar)
-                // Seek OSD: show SeekBar + time only.
-                set.setVisibility(R.id.controls_row, View.GONE)
-                set.setVisibility(R.id.tv_time, View.VISIBLE)
-                // Ensure the (gone) controls row doesn't constrain the bottom edge in wrap-content mode.
-                set.clear(R.id.controls_row, ConstraintSet.TOP)
-                set.clear(R.id.controls_row, ConstraintSet.BOTTOM)
-
-                // Move time text below SeekBar so it can remain visible without the button row.
-                set.clear(R.id.tv_time, ConstraintSet.TOP)
-                set.clear(R.id.tv_time, ConstraintSet.BOTTOM)
-                set.connect(R.id.tv_time, ConstraintSet.TOP, R.id.seek_progress, ConstraintSet.BOTTOM)
-                set.connect(R.id.tv_time, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
-                set.setVerticalBias(R.id.tv_time, 1.0f)
-            }
-    }
-
-    private fun applyBottomBarFullLayout() {
-        ensureBottomBarConstraintSets()
-        bottomBarFullConstraints?.applyTo(binding.bottomBar)
-    }
-
-    private fun applyBottomBarSeekLayout() {
-        ensureBottomBarConstraintSets()
-        bottomBarSeekConstraints?.applyTo(binding.bottomBar)
-    }
-
-    private fun scheduleHideSeekOsd() {
-        seekOsdHideJob?.cancel()
-        val token = SystemClock.uptimeMillis()
-        seekOsdToken = token
-        seekOsdHideJob =
-            lifecycleScope.launch {
-                delay(SEEK_OSD_HIDE_DELAY_MS)
-                if (seekOsdToken != token) return@launch
-                transientSeekOsdVisible = false
-                updatePersistentBottomProgressBarVisibility()
-            }
-    }
-
-    private fun updatePersistentBottomProgressBarVisibility() {
-        val enabled = BiliClient.prefs.playerPersistentBottomProgressEnabled
-        val showControls = osdMode != OsdMode.Hidden || binding.settingsPanel.visibility == View.VISIBLE
-        val persistentV = if (enabled && !showControls && !transientSeekOsdVisible) View.VISIBLE else View.GONE
-        if (binding.progressPersistentBottom.visibility != persistentV) binding.progressPersistentBottom.visibility = persistentV
-
-        val seekOsdV = if (!showControls && transientSeekOsdVisible) View.VISIBLE else View.GONE
-        if (binding.seekOsdContainer.visibility != seekOsdV) binding.seekOsdContainer.visibility = seekOsdV
-    }
-
-    private fun restartAutoHideTimer() {
-        autoHideJob?.cancel()
-        val exo = player ?: return
-        if (osdMode != OsdMode.Full) return
-        if (binding.settingsPanel.visibility == View.VISIBLE) return
-        if (scrubbing) return
-        if (!exo.isPlaying) return
-        val token = lastInteractionAtMs
-        autoHideJob = lifecycleScope.launch {
-            delay(AUTO_HIDE_MS)
-            if (token != lastInteractionAtMs) return@launch
-            setControlsVisible(false)
-        }
-    }
-
-    private fun noteUserInteraction() {
-        lastInteractionAtMs = SystemClock.uptimeMillis()
-        restartAutoHideTimer()
-    }
-
-    private fun scheduleKeyScrubEnd() {
-        keyScrubEndJob?.cancel()
-        keyScrubEndJob =
-            lifecycleScope.launch {
-                delay(KEY_SCRUB_END_DELAY_MS)
-                scrubbing = false
-                restartAutoHideTimer()
-            }
-    }
-
-    private fun hasControlsFocus(): Boolean =
-        binding.topBar.hasFocus() || binding.bottomBar.hasFocus() || binding.settingsPanel.hasFocus()
-
-    private fun applyActionButtonsVisibility() {
-        val enabled = BiliClient.prefs.playerActionButtons.toSet()
-        binding.btnLike.visibility = if (enabled.contains(AppPrefs.PLAYER_ACTION_BTN_LIKE)) View.VISIBLE else View.GONE
-        binding.btnCoin.visibility = if (enabled.contains(AppPrefs.PLAYER_ACTION_BTN_COIN)) View.VISIBLE else View.GONE
-        binding.btnFav.visibility = if (enabled.contains(AppPrefs.PLAYER_ACTION_BTN_FAV)) View.VISIBLE else View.GONE
-        updateActionButtonsUi()
-    }
-
-    private fun updateActionButtonsUi() {
-        updateLikeButtonUi()
-        updateCoinButtonUi()
-        updateFavButtonUi()
-    }
-
-    private fun updateLikeButtonUi() {
-        val active = actionLiked
-        val colorRes = if (active) R.color.blbl_blue else R.color.blbl_text
-        binding.btnLike.imageTintList = ContextCompat.getColorStateList(this, colorRes)
-        binding.btnLike.isEnabled = true
-        binding.btnLike.alpha = 1.0f
-    }
-
-    private fun updateCoinButtonUi() {
-        val active = actionCoinCount > 0
-        val colorRes = if (active) R.color.blbl_blue else R.color.blbl_text
-        binding.btnCoin.imageTintList = ContextCompat.getColorStateList(this, colorRes)
-        binding.btnCoin.isEnabled = true
-        binding.btnCoin.alpha = 1.0f
-    }
-
-    private fun updateFavButtonUi() {
-        val active = actionFavored
-        val colorRes = if (active) R.color.blbl_blue else R.color.blbl_text
-        binding.btnFav.imageTintList = ContextCompat.getColorStateList(this, colorRes)
-        binding.btnFav.isEnabled = true
-        binding.btnFav.alpha = 1.0f
-    }
-
-    private fun onLikeButtonClicked() {
-        if (likeActionJob?.isActive == true) return
-        val requestBvid = currentBvid.trim().takeIf { it.isNotBlank() } ?: return
-        val targetLike = !actionLiked
-        setControlsVisible(true)
-
-        likeActionJob =
-            lifecycleScope.launch {
-                try {
-                    updateLikeButtonUi()
-                    BiliApi.archiveLike(bvid = requestBvid, aid = currentAid, like = targetLike)
-                    if (currentBvid != requestBvid) return@launch
-                    actionLiked = targetLike
-                    Toast.makeText(this@PlayerActivity, if (targetLike) "点赞成功" else "已取消赞", Toast.LENGTH_SHORT).show()
-                } catch (t: Throwable) {
-                    if (t is CancellationException) return@launch
-                    val e = t as? BiliApiException
-                    if (targetLike && e?.apiCode == 65006) {
-                        if (currentBvid != requestBvid) return@launch
-                        actionLiked = true
-                        Toast.makeText(this@PlayerActivity, "已点赞", Toast.LENGTH_SHORT).show()
-                    } else {
-                        val msg = e?.apiMessage?.takeIf { it.isNotBlank() } ?: (t.message ?: "操作失败")
-                        Toast.makeText(this@PlayerActivity, msg, Toast.LENGTH_SHORT).show()
-                    }
-                } finally {
-                    likeActionJob = null
-                    updateLikeButtonUi()
-                }
-            }
-    }
-
-    private fun onCoinButtonClicked() {
-        if (coinActionJob?.isActive == true) return
-        if (actionCoinCount >= 2) return
-        val requestBvid = currentBvid.trim().takeIf { it.isNotBlank() } ?: return
-        setControlsVisible(true)
-
-        coinActionJob =
-            lifecycleScope.launch {
-                try {
-                    updateCoinButtonUi()
-                    BiliApi.coinAdd(bvid = requestBvid, aid = currentAid, multiply = 1, selectLike = false)
-                    if (currentBvid != requestBvid) return@launch
-                    actionCoinCount = (actionCoinCount + 1).coerceAtMost(2)
-                    Toast.makeText(this@PlayerActivity, "投币成功", Toast.LENGTH_SHORT).show()
-                } catch (t: Throwable) {
-                    if (t is CancellationException) return@launch
-                    val e = t as? BiliApiException
-                    if (e?.apiCode == 34005) {
-                        if (currentBvid != requestBvid) return@launch
-                        actionCoinCount = 2
-                        Toast.makeText(this@PlayerActivity, "已达到投币上限", Toast.LENGTH_SHORT).show()
-                    } else {
-                        val msg = e?.apiMessage?.takeIf { it.isNotBlank() } ?: (t.message ?: "操作失败")
-                        Toast.makeText(this@PlayerActivity, msg, Toast.LENGTH_SHORT).show()
-                    }
-                } finally {
-                    coinActionJob = null
-                    updateCoinButtonUi()
-                }
-            }
-    }
-
-    private fun onFavButtonClicked() {
-        if (favDialogJob?.isActive == true || favApplyJob?.isActive == true) return
-        val selfMid = BiliClient.cookies.getCookieValue("DedeUserID")?.trim()?.toLongOrNull()?.takeIf { it > 0L }
-        if (selfMid == null) {
-            Toast.makeText(this, "请先登录后再收藏", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val aid = currentAid?.takeIf { it > 0L }
-        if (aid == null) {
-            Toast.makeText(this, "未获取到 aid，暂不支持收藏", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val requestBvid = currentBvid
-        val requestAid = aid
-        setControlsVisible(true)
-
-        favDialogJob =
-            lifecycleScope.launch {
-                try {
-                    updateFavButtonUi()
-                    val folders =
-                        withContext(Dispatchers.IO) {
-                            BiliApi.favFoldersWithState(upMid = selfMid, rid = requestAid)
-                        }
-                    if (currentBvid != requestBvid) return@launch
-                    if (folders.isEmpty()) {
-                        Toast.makeText(this@PlayerActivity, "未获取到收藏夹", Toast.LENGTH_SHORT).show()
-                        return@launch
-                    }
-
-                    val initial = folders.filter { it.favState }.map { it.mediaId }.toSet()
-
-                    actionFavored = initial.isNotEmpty()
-                    updateFavButtonUi()
-
-                    val labels =
-                        folders.map { folder ->
-                            if (folder.favState) "${folder.title}（已收藏）" else folder.title
-                        }
-                    SingleChoiceDialog.show(
-                        context = this@PlayerActivity,
-                        title = "选择收藏夹",
-                        items = labels,
-                        checkedIndex = 0,
-                        negativeText = "取消",
-                        onNegative = { binding.btnFav.post { binding.btnFav.requestFocus() } },
-                    ) { index, _ ->
-                        val picked = folders.getOrNull(index)
-                        if (picked == null) {
-                            binding.btnFav.post { binding.btnFav.requestFocus() }
-                            return@show
-                        }
-
-                        val nextSelected = initial.toMutableSet()
-                        if (nextSelected.contains(picked.mediaId)) nextSelected.remove(picked.mediaId) else nextSelected.add(picked.mediaId)
-                        val add = (nextSelected - initial).toList()
-                        val del = (initial - nextSelected).toList()
-                        if (add.isNotEmpty() || del.isNotEmpty()) {
-                            applyFavSelection(rid = requestAid, add = add, del = del, selected = nextSelected.toSet())
-                        }
-                        binding.btnFav.post { binding.btnFav.requestFocus() }
-                    }
-                } catch (t: Throwable) {
-                    if (t is CancellationException) return@launch
-                    val e = t as? BiliApiException
-                    val msg = e?.apiMessage?.takeIf { it.isNotBlank() } ?: (t.message ?: "加载收藏夹失败")
-                    Toast.makeText(this@PlayerActivity, msg, Toast.LENGTH_SHORT).show()
-                } finally {
-                    favDialogJob = null
-                    updateFavButtonUi()
-                }
-            }
-    }
-
-    private fun applyFavSelection(
-        rid: Long,
-        add: List<Long>,
-        del: List<Long>,
-        selected: Set<Long>,
-    ) {
-        if (favApplyJob?.isActive == true) return
-        favApplyJob =
-            lifecycleScope.launch {
-                try {
-                    updateFavButtonUi()
-                    BiliApi.favResourceDeal(rid = rid, addMediaIds = add, delMediaIds = del)
-                    actionFavored = selected.isNotEmpty()
-                    updateFavButtonUi()
-                    Toast.makeText(this@PlayerActivity, "收藏已更新", Toast.LENGTH_SHORT).show()
-                } catch (t: Throwable) {
-                    if (t is CancellationException) return@launch
-                    val e = t as? BiliApiException
-                    val msg = e?.apiMessage?.takeIf { it.isNotBlank() } ?: (t.message ?: "操作失败")
-                    Toast.makeText(this@PlayerActivity, msg, Toast.LENGTH_SHORT).show()
-                } finally {
-                    favApplyJob = null
-                    updateFavButtonUi()
-                }
-            }
-    }
-
-    private fun focusFirstControl() {
-        binding.btnPlayPause.post { binding.btnPlayPause.requestFocus() }
-    }
-
-    private fun focusSeekBar() {
-        binding.seekProgress.post { binding.seekProgress.requestFocus() }
-    }
-
-    private fun focusAdvancedControl() {
-        binding.btnAdvanced.post { binding.btnAdvanced.requestFocus() }
-    }
-
-    private fun focusSettingsPanel() {
-        binding.recyclerSettings.post {
-            val child = binding.recyclerSettings.getChildAt(0)
-            if (child != null) {
-                child.requestFocus()
-                return@post
-            }
-
-            binding.recyclerSettings.scrollToPosition(0)
-            binding.recyclerSettings.post {
-                val first = binding.recyclerSettings.getChildAt(0)
-                (first ?: binding.recyclerSettings).requestFocus()
-            }
-        }
-    }
-
-    private fun smartSeek(direction: Int) {
-        smartSeek(direction, showControls = true, hintKind = SeekHintKind.Step)
-    }
-
-    private enum class SeekHintKind {
-        Step,
-        Hold,
-    }
-
-    private fun isSeekKey(keyCode: Int): Boolean {
-        return when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_LEFT,
-            KeyEvent.KEYCODE_DPAD_RIGHT,
-            KeyEvent.KEYCODE_MEDIA_REWIND,
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
-            -> true
-
-            else -> false
-        }
-    }
-
-    private fun clearKeySeekPending() {
-        keySeekHoldDetectJob?.cancel()
-        keySeekHoldDetectJob = null
-        keySeekPendingKeyCode = 0
-        keySeekPendingDirection = 0
-    }
-
-    private fun beginKeySeekPending(keyCode: Int, direction: Int, showControls: Boolean) {
-        clearKeySeekPending()
-        keySeekPendingKeyCode = keyCode
-        keySeekPendingDirection = direction
-
-        // Delay to decide tap vs hold:
-        // - If repeats arrive, dispatchKeyEvent() will start hold immediately and clear this pending state.
-        // - If no repeats (some remotes/media keys), start hold after the long-press timeout.
-        val timeoutMs = ViewConfiguration.getLongPressTimeout().toLong()
-        keySeekHoldDetectJob =
-            lifecycleScope.launch {
-                delay(timeoutMs)
-                if (keySeekPendingKeyCode != keyCode || keySeekPendingDirection != direction) return@launch
-                if (holdSeekJob != null) return@launch
-                showSeekOsd()
-                if (direction < 0) {
-                    // Long-press LEFT: always use preview-scrub rewind (independent of hold-seek mode setting).
-                    startHoldScrub(direction = direction, showControls = showControls)
-                } else {
-                    startHoldSeek(direction = direction, showControls = showControls)
-                }
-                // Once we enter hold, a later ACTION_UP should only stop the hold (no step seek).
-                clearKeySeekPending()
-            }
-    }
-
-    private fun smartSeek(direction: Int, showControls: Boolean, hintKind: SeekHintKind) {
-        val now = SystemClock.uptimeMillis()
-        val sameDir = direction == smartSeekDirection
-        val within = now - smartSeekLastAtMs <= SMART_SEEK_WINDOW_MS
-        val continued = sameDir && within
-        smartSeekStreak = if (continued) (smartSeekStreak + 1) else 1
-        smartSeekDirection = direction
-        smartSeekLastAtMs = now
-
-        if (showControls) {
-            if (osdMode != OsdMode.Full && binding.settingsPanel.visibility != View.VISIBLE) setControlsVisible(true) else noteUserInteraction()
-        } else {
-            noteUserInteraction()
-        }
-
-        val step = smartSeekStepMs(smartSeekStreak)
-        seekRelative(step * direction)
-        smartSeekTotalMs = if (continued) (smartSeekTotalMs + step) else step
-        if (hintKind == SeekHintKind.Step) showSeekStepHint(direction, smartSeekTotalMs)
-    }
-
-    private fun smartSeekStepMs(streak: Int): Long {
-        val baseStepsSec = intArrayOf(2, 3, 5, 7, 10, 15, 25, 35, 45)
-        val idx = (streak - 1).coerceAtLeast(0)
-        val sec =
-            if (idx < baseStepsSec.size) {
-                baseStepsSec[idx]
-            } else {
-                val extra = idx - (baseStepsSec.size - 1)
-                (baseStepsSec.last() + (10 * extra)).coerceAtMost(300)
-            }
-        return sec * 1000L
-    }
-
-    private fun startHoldSeek(direction: Int, showControls: Boolean) {
-        // Speed-hold seek is forward-only; long-press LEFT is handled by preview-scrub (startHoldScrub).
-        if (direction <= 0) return
-        if (holdSeekJob?.isActive == true) return
-        val exo = player ?: return
-
-        if (showControls) {
-            if (osdMode != OsdMode.Full && binding.settingsPanel.visibility != View.VISIBLE) setControlsVisible(true) else noteUserInteraction()
-        } else {
-            noteUserInteraction()
-        }
-
-        val holdSpeed = holdSeekSpeed()
-        val holdMode = BiliClient.prefs.playerHoldSeekMode
-        holdPrevSpeed = exo.playbackParameters.speed
-        holdPrevPlayWhenReady = exo.playWhenReady
-        holdScrubPreviewPosMs = null
-        if (holdMode == AppPrefs.PLAYER_HOLD_SEEK_MODE_SCRUB) {
-            startHoldScrubSeek(exo = exo, direction = direction, speed = holdSpeed)
-            return
-        }
-        showSeekHoldHint(direction, holdSpeed)
-        exo.setPlaybackSpeed(holdSpeed)
-        exo.playWhenReady = true
-        holdSeekJob = lifecycleScope.launch { kotlinx.coroutines.awaitCancellation() }
-    }
-
-    private fun startHoldScrub(direction: Int, showControls: Boolean) {
-        if (holdSeekJob?.isActive == true) return
-        val exo = player ?: return
-
-        if (showControls) {
-            if (osdMode != OsdMode.Full && binding.settingsPanel.visibility != View.VISIBLE) setControlsVisible(true) else noteUserInteraction()
-        } else {
-            noteUserInteraction()
-        }
-
-        val holdSpeed = holdSeekSpeed()
-        holdPrevSpeed = exo.playbackParameters.speed
-        holdPrevPlayWhenReady = exo.playWhenReady
-        holdScrubPreviewPosMs = null
-        startHoldScrubSeek(exo = exo, direction = direction, speed = holdSpeed)
-    }
-
-    private fun startHoldScrubSeek(exo: ExoPlayer, direction: Int, speed: Float) {
-        val duration = exo.duration.takeIf { it > 0 } ?: currentViewDurationMs ?: 0L
-        if (duration <= 0L) {
-            // Unknown duration: cannot show an actual progress bar scrub; fall back to speed-hold.
-            if (direction <= 0) return
-            showSeekHoldHint(direction, speed)
-            exo.setPlaybackSpeed(speed)
-            exo.playWhenReady = true
-            holdSeekJob = lifecycleScope.launch { kotlinx.coroutines.awaitCancellation() }
-            return
-        }
-
-        scrubbing = true
-        keyScrubEndJob?.cancel()
-        keyScrubEndJob = null
-
-        exo.pause()
-
-        val initial = exo.currentPosition.coerceIn(0L, duration)
-        holdScrubPreviewPosMs = initial
-        showSeekOsd(posMs = initial, durationMs = duration, bufferedPosMs = exo.bufferedPosition)
-
-        val tickMs = HOLD_SCRUB_TICK_MS
-        // Always use the "scrub progress bar" algorithm for preview scrubbing
-        // (both LEFT and RIGHT directions), independent of the hold-seek mode setting.
-        val stepMs = holdScrubStepMs(durationMs = duration, tickMs = tickMs).coerceAtLeast(1L)
-        val deltaMs = stepMs * direction.toLong()
-        holdSeekJob =
-            lifecycleScope.launch {
-                while (isActive) {
-                    val current = holdScrubPreviewPosMs ?: initial
-                    val next = (current + deltaMs).coerceIn(0L, duration)
-                    holdScrubPreviewPosMs = next
-                    showSeekOsd(posMs = next, durationMs = duration, bufferedPosMs = exo.bufferedPosition)
-                    delay(tickMs)
-                }
-            }
-    }
-
-    private fun stopHoldSeek() {
-        val exo = player
-        val scrubTarget = holdScrubPreviewPosMs
-        holdScrubPreviewPosMs = null
-        if (scrubTarget != null) {
-            scrubbing = false
-            keyScrubEndJob?.cancel()
-            keyScrubEndJob = null
-        }
-        holdSeekJob?.cancel()
-        holdSeekJob = null
-        if (exo != null) {
-            exo.setPlaybackSpeed(holdPrevSpeed)
-            if (scrubTarget != null) {
-                exo.seekTo(scrubTarget)
-                val duration = exo.duration.takeIf { it > 0 } ?: currentViewDurationMs ?: 0L
-                if (duration > 0L) showSeekOsd(posMs = scrubTarget, durationMs = duration, bufferedPosMs = exo.bufferedPosition)
-            }
-            exo.playWhenReady = holdPrevPlayWhenReady
-            val pos = (scrubTarget ?: exo.currentPosition).coerceAtLeast(0L)
-            requestDanmakuSegmentsForPosition(pos, immediate = true)
-        }
-        scheduleHideSeekHint()
-    }
-
-    private fun showSeekStepHint(direction: Int, totalMs: Long) {
-        val sec = (kotlin.math.abs(totalMs) / 1000L).coerceAtLeast(1L)
-        val text = if (direction > 0) "快进 ${sec}s" else "后退 ${sec}s"
-        showSeekHint(text, hold = false)
-    }
-
-    private fun showSeekHoldHint(direction: Int, speed: Float) {
-        val s = holdSeekSpeedText(speed)
-        val text = if (direction > 0) "快进 x$s" else "后退 x$s"
-        showSeekHint(text, hold = true)
-    }
-
-    private fun holdSeekSpeed(): Float {
-        val v = BiliClient.prefs.playerHoldSeekSpeed
-        val fallback = AppPrefs.PLAYER_HOLD_SEEK_SPEED_DEFAULT
-        if (!v.isFinite()) return fallback
-        return v.coerceIn(1.5f, 4.0f)
-    }
-
-    private fun holdSeekSpeedText(speed: Float): String {
-        val v = speed.takeIf { it.isFinite() } ?: AppPrefs.PLAYER_HOLD_SEEK_SPEED_DEFAULT
-        val fixed = String.format(Locale.US, "%.2f", v)
-        return fixed.trimEnd('0').trimEnd('.')
-    }
-
-    private fun holdScrubStepMs(durationMs: Long, tickMs: Long): Long {
-        val duration = durationMs.coerceAtLeast(0L)
-        if (duration <= 0L) return 0L
-        val tick = tickMs.coerceAtLeast(1L)
-        val step =
-            if (duration < HOLD_SCRUB_SHORT_VIDEO_THRESHOLD_MS) {
-                // Short videos: fixed speed (independent of hold seek speed).
-                (HOLD_SCRUB_SHORT_SPEED_MS_PER_S.toDouble() * tick.toDouble() / 1000.0).roundToInt().toLong()
-            } else {
-                // Long videos: traverse from 0% -> 100% in about HOLD_SCRUB_TRAVERSE_MS.
-                (duration.toDouble() * tick.toDouble() / HOLD_SCRUB_TRAVERSE_MS.toDouble()).roundToInt().toLong()
-            }
-        return step.coerceAtLeast(1L)
-    }
-
-    private fun showSeekHint(text: String, hold: Boolean) {
-        binding.tvSeekHint.text = text
-        binding.tvSeekHint.visibility = View.VISIBLE
-        seekHintJob?.cancel()
-        if (!hold) scheduleHideSeekHint()
-    }
-
-    private fun scheduleHideSeekHint() {
-        seekHintJob?.cancel()
-        seekHintJob =
-            lifecycleScope.launch {
-                delay(SEEK_HINT_HIDE_DELAY_MS)
-                binding.tvSeekHint.visibility = View.GONE
-            }
-    }
-
-    private fun edgeDirection(x: Float, width: Float): Int {
-        return when {
-            x < width * EDGE_TAP_THRESHOLD -> -1
-            x > width * (1f - EDGE_TAP_THRESHOLD) -> +1
-            else -> 0
-        }
-    }
-
-    private fun isInteractionKey(keyCode: Int): Boolean {
-        return when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_UP,
-            KeyEvent.KEYCODE_DPAD_DOWN,
-            KeyEvent.KEYCODE_DPAD_LEFT,
-            KeyEvent.KEYCODE_DPAD_RIGHT,
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_NUMPAD_ENTER,
-            KeyEvent.KEYCODE_SPACE,
-            KeyEvent.KEYCODE_BACK,
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-            KeyEvent.KEYCODE_MEDIA_PLAY,
-            KeyEvent.KEYCODE_MEDIA_PAUSE,
-            KeyEvent.KEYCODE_MEDIA_REWIND,
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
-            KeyEvent.KEYCODE_MENU,
-            KeyEvent.KEYCODE_SETTINGS,
-            KeyEvent.KEYCODE_INFO,
-            KeyEvent.KEYCODE_GUIDE,
-            -> true
-
-            else -> false
-        }
-    }
-
-    private fun updatePlayPauseIcon(isPlaying: Boolean) {
-        binding.btnPlayPause.setImageResource(
-            if (isPlaying) blbl.cat3399.R.drawable.ic_player_pause else blbl.cat3399.R.drawable.ic_player_play,
-        )
-    }
-
-    private fun updateProgressUi() {
-        val exo = player ?: return
-        val duration = exo.duration.takeIf { it > 0 } ?: currentViewDurationMs ?: 0L
-        val pos = exo.currentPosition.coerceAtLeast(0L)
-        val uiPos = holdScrubPreviewPosMs ?: pos
-        val bufPos = exo.bufferedPosition.coerceAtLeast(0L)
-
-        val uiScrubbing = scrubbing || holdScrubPreviewPosMs != null
-        if (!uiScrubbing) {
-            binding.tvTime.text = "${formatHms(pos)} / ${formatHms(duration)}"
-            binding.tvSeekOsdTime.text = "${formatHms(pos)} / ${formatHms(duration)}"
-        }
-
-        val enabled = duration > 0
-        binding.seekProgress.isEnabled = enabled
-        binding.progressPersistentBottom.isEnabled = enabled
-        binding.progressSeekOsd.isEnabled = enabled
-        if (enabled) {
-            val bufferedProgress =
-                ((bufPos.toDouble() / duration.toDouble()) * SEEK_MAX)
-                    .toInt()
-                    .coerceIn(0, SEEK_MAX)
-            binding.seekProgress.secondaryProgress = bufferedProgress
-            binding.progressPersistentBottom.secondaryProgress = bufferedProgress
-            binding.progressSeekOsd.secondaryProgress = bufferedProgress
-
-            if (!uiScrubbing) {
-                val p = ((pos.toDouble() / duration.toDouble()) * SEEK_MAX).toInt().coerceIn(0, SEEK_MAX)
-                binding.seekProgress.progress = p
-            }
-            val pNow = ((uiPos.toDouble() / duration.toDouble()) * SEEK_MAX).toInt().coerceIn(0, SEEK_MAX)
-            binding.progressPersistentBottom.progress = pNow
-            binding.progressSeekOsd.progress = pNow
-        } else {
-            binding.seekProgress.secondaryProgress = 0
-            binding.progressPersistentBottom.secondaryProgress = 0
-            binding.progressPersistentBottom.progress = 0
-            binding.progressSeekOsd.secondaryProgress = 0
-            binding.progressSeekOsd.progress = 0
-        }
-        requestDanmakuSegmentsForPosition(pos, immediate = false)
-        val markerDurationMs = exo.duration.takeIf { it > 0 } ?: currentViewDurationMs ?: 0L
-        maybeUpdateAutoSkipSegmentMarkers(durationMs = markerDurationMs)
-        maybeTickAutoSkipSegments(posMs = pos)
-    }
-
-    private fun cancelPendingAutoResume(reason: String) {
-        if (reason == "back" || reason == "user_seek") autoResumeCancelledByUser = true
-        dismissAutoResumeHint()
-        autoResumeJob?.cancel()
-        autoResumeJob = null
-        trace?.log("resume:cancel", "reason=$reason")
-    }
-
-    private fun showAutoResumeHint(targetMs: Long) {
-        dismissAutoResumeHint()
-        val timeText = formatHms(targetMs.coerceAtLeast(0L))
-        val msg = "将要跳到上次播放位置（$timeText），按返回取消"
-        autoResumeHintVisible = true
-        // Reuse the existing bottom "seek hint" component for consistent look & feel.
-        showSeekHint(msg, hold = true)
-        // Keep the hint visible until either:
-        // - user cancels (back / user seek), or
-        // - auto-resume seek happens.
-        autoResumeHintTimeoutJob?.cancel()
-        autoResumeHintTimeoutJob = null
-    }
-
-    private fun dismissAutoResumeHint() {
-        if (!autoResumeHintVisible) return
-        autoResumeHintVisible = false
-        autoResumeHintTimeoutJob?.cancel()
-        autoResumeHintTimeoutJob = null
-        seekHintJob?.cancel()
-        binding.tvSeekHint.visibility = View.GONE
-    }
-
-    private fun cancelPendingAutoSkip(reason: String, markIgnored: Boolean) {
-        autoSkipPending?.let { pending ->
-            if (markIgnored) {
-                autoSkipHandledSegmentIds.add(pending.segment.id)
-            }
-        }
-        autoSkipPending = null
-        dismissAutoSkipHint()
-        trace?.log("skipseg:cancel", "reason=$reason ignored=${if (markIgnored) 1 else 0}")
-    }
-
-    private fun showAutoSkipHint(segment: SkipSegment) {
-        dismissAutoSkipHint()
-        val label = autoSkipCategoryLabel(segment.category)
-        val range = "${formatHms(segment.startMs)}→${formatHms(segment.endMs)}"
-        val msg = "将要跳过${label}片段（$range），按返回取消"
-        autoSkipHintVisible = true
-        showSeekHint(msg, hold = true)
-    }
-
-    private fun dismissAutoSkipHint() {
-        if (!autoSkipHintVisible) return
-        autoSkipHintVisible = false
-        seekHintJob?.cancel()
-        binding.tvSeekHint.visibility = View.GONE
-    }
-
-    private fun autoSkipCategoryLabel(category: String?): String {
-        val c = category?.trim().orEmpty()
-        return when (c) {
-            "" -> "此"
-            "sponsor" -> "赞助/广告"
-            "selfpromo" -> "推广"
-            "exclusive_access" -> "品牌合作"
-            "interaction" -> "三连提醒"
-            "poi_highlight" -> "精彩时刻"
-            "intro" -> "片头"
-            "outro" -> "片尾"
-            "preview" -> "预览"
-            "padding" -> "填充内容"
-            "filler" -> "离题"
-            "music_offtopic" -> "非音乐"
-            else -> c
-        }
-    }
-
-    private fun maybeUpdateAutoSkipSegmentMarkers(durationMs: Long) {
-        val enabled = BiliClient.prefs.playerAutoSkipSegmentsEnabled
-        if (!enabled || durationMs <= 0L || autoSkipSegments.isEmpty()) {
-            if (autoSkipMarkersShown) {
-                binding.seekProgress.clearSegments()
-                binding.progressPersistentBottom.clearSegments()
-                binding.progressSeekOsd.clearSegments()
-                autoSkipMarkersShown = false
-            }
-            autoSkipMarkersDirty = false
-            autoSkipMarkersDurationMs = durationMs
-            return
-        }
-
-        if (!autoSkipMarkersDirty && autoSkipMarkersShown && autoSkipMarkersDurationMs == durationMs) return
-        autoSkipMarkersDurationMs = durationMs
-        autoSkipMarkersDirty = false
-
-        val durF = durationMs.toFloat()
-        if (durF <= 0f) return
-        val marks =
-            autoSkipSegments.mapNotNull { seg ->
-                val start = seg.startMs.coerceAtLeast(0L)
-                val end = seg.endMs.coerceAtLeast(0L)
-                if (end <= start) return@mapNotNull null
-                val s = (start.toFloat() / durF).coerceIn(0f, 1f)
-                val e = (end.toFloat() / durF).coerceIn(0f, 1f)
-                if (e <= s) return@mapNotNull null
-                SegmentMark(startFraction = s, endFraction = e)
-            }
-        binding.seekProgress.setSegments(marks)
-        binding.progressPersistentBottom.setSegments(marks)
-        binding.progressSeekOsd.setSegments(marks)
-        autoSkipMarkersShown = marks.isNotEmpty()
-    }
-
-    private fun maybeTickAutoSkipSegments(posMs: Long) {
-        if (!BiliClient.prefs.playerAutoSkipSegmentsEnabled) return
-        val exo = player ?: return
-        if (!exo.playWhenReady) return
-        if (scrubbing) return
-        if (autoResumeHintVisible) return
-
-        val now = SystemClock.elapsedRealtime()
-        autoSkipPending?.let { pending ->
-            if (pending.token != autoSkipToken) {
-                autoSkipPending = null
-                dismissAutoSkipHint()
-                return
-            }
-            if (autoSkipHandledSegmentIds.contains(pending.segment.id)) {
-                autoSkipPending = null
-                dismissAutoSkipHint()
-                return
-            }
-            if (now < pending.dueAtElapsedMs) return
-
-            val seg = pending.segment
-            if (posMs < seg.startMs) return
-            if (posMs >= seg.endMs) {
-                autoSkipPending = null
-                dismissAutoSkipHint()
-                return
-            }
-
-            val durationMs = exo.duration.takeIf { it > 0 }
-            val targetMs = durationMs?.let { seg.endMs.coerceIn(0L, (it - 500L).coerceAtLeast(0L)) } ?: seg.endMs
-            autoSkipHandledSegmentIds.add(seg.id)
-            autoSkipPending = null
-            dismissAutoSkipHint()
-            trace?.log("skipseg:seek", "to=${targetMs}ms id=${seg.id} cat=${seg.category ?: ""} src=${seg.source}")
-            exo.seekTo(targetMs)
-            showSeekHint("已跳过${autoSkipCategoryLabel(seg.category)}片段", hold = false)
-            return
-        }
-
-        if (autoSkipSegments.isEmpty()) return
-        val windowEndMs = posMs + AUTO_SKIP_START_WINDOW_MS
-        val candidate =
-            autoSkipSegments.firstOrNull { seg ->
-                if (autoSkipHandledSegmentIds.contains(seg.id)) return@firstOrNull false
-                when {
-                    posMs >= seg.startMs && posMs < seg.endMs -> true
-                    seg.startMs in posMs..windowEndMs -> true
-                    seg.startMs > windowEndMs -> false
-                    else -> false
-                }
-            } ?: return
-
-        autoSkipPending = PendingAutoSkip(token = autoSkipToken, segment = candidate, dueAtElapsedMs = now + AUTO_SKIP_DELAY_MS)
-        trace?.log("skipseg:pending", "id=${candidate.id} cat=${candidate.category ?: ""} src=${candidate.source}")
-        showAutoSkipHint(candidate)
-    }
-
-    private fun maybeStartAutoSkipSegments(
-        playJson: JSONObject,
-        bvid: String,
-        cid: Long,
-        playbackToken: Int,
-    ) {
-        if (!BiliClient.prefs.playerAutoSkipSegmentsEnabled) return
-        if (playbackToken != autoSkipToken) return
-        if (bvid.isBlank() || cid <= 0L) return
-
-        autoSkipFetchJob?.cancel()
-        autoSkipFetchJob = null
-
-        val clipSegments = extractClipInfoSegmentsFromPlayJson(playJson)
-        setAutoSkipSegments(playbackToken, clipSegments)
-
-        autoSkipFetchJob =
-            lifecycleScope.launch {
-                val sbSegments =
-                    withContext(Dispatchers.IO) {
-                        runCatching { SponsorBlockApi.skipSegments(bvid = bvid, cid = cid) }.getOrNull().orEmpty()
-                    }
-                if (!isActive) return@launch
-                if (playbackToken != autoSkipToken) return@launch
-
-                val merged = LinkedHashMap<String, SkipSegment>(clipSegments.size + sbSegments.size)
-                for (seg in clipSegments) merged[seg.id] = seg
-                for (sb in sbSegments) {
-                    val id =
-                        sb.uuid?.takeIf { it.isNotBlank() }?.let { "sb:$it" }
-                            ?: "sb:${sb.category.orEmpty()}:${sb.startMs}-${sb.endMs}"
-                    merged[id] =
-                        SkipSegment(
-                            id = id,
-                            startMs = sb.startMs,
-                            endMs = sb.endMs,
-                            category = sb.category,
-                            source = "sponsorblock",
-                        )
-                }
-                setAutoSkipSegments(playbackToken, merged.values.toList())
-            }
-    }
-
-    private fun extractClipInfoSegmentsFromPlayJson(playJson: JSONObject): List<SkipSegment> {
-        val data = playJson.optJSONObject("data") ?: playJson.optJSONObject("result") ?: return emptyList()
-        val arr = data.optJSONArray("clip_info_list") ?: data.optJSONArray("clipInfoList") ?: return emptyList()
-        val out = ArrayList<SkipSegment>(arr.length())
-        for (i in 0 until arr.length()) {
-            val obj = arr.optJSONObject(i) ?: continue
-            val clipType = obj.optString("clipType", obj.optString("clip_type", "")).trim()
-            val category =
-                when (clipType) {
-                    "CLIP_TYPE_OP" -> "intro"
-                    "CLIP_TYPE_ED" -> "outro"
-                    else -> "clip"
-                }
-            val startRaw = obj.optDouble("start", Double.NaN)
-            val endRaw = obj.optDouble("end", Double.NaN)
-            if (!startRaw.isFinite() || !endRaw.isFinite()) continue
-            val startMs = normalizeClipTimeToMs(startRaw).coerceAtLeast(0L)
-            val endMs = normalizeClipTimeToMs(endRaw).coerceAtLeast(0L)
-            if (endMs <= startMs) continue
-            val id = "pgc:$category:$startMs-$endMs"
-            out.add(SkipSegment(id = id, startMs = startMs, endMs = endMs, category = category, source = "pgc_clip"))
-        }
-        return out
-    }
-
-    private fun normalizeClipTimeToMs(value: Double): Long {
-        // B站 clip_info_list 的 start/end 常见为秒（支持小数），但也可能直接是毫秒。
-        return if (value >= 10_000.0) value.toLong() else (value * 1000.0).toLong()
-    }
-
-    private fun setAutoSkipSegments(token: Int, segments: List<SkipSegment>) {
-        if (token != autoSkipToken) return
-        autoSkipSegments = segments.sortedBy { it.startMs }
-        autoSkipMarkersDirty = true
-        trace?.log("skipseg:set", "count=${autoSkipSegments.size}")
-    }
-
-    private fun extractResumeCandidateFromPlayJson(playJson: JSONObject): ResumeCandidate? {
-        val data = playJson.optJSONObject("data") ?: playJson.optJSONObject("result") ?: return null
-        val time = data.optLong("last_play_time", -1L).takeIf { it > 0 } ?: return null
-        val hint =
-            when {
-                time >= 10_000L -> RawTimeUnitHint.MILLIS_LIKELY
-                else -> RawTimeUnitHint.UNKNOWN
-            }
-        return ResumeCandidate(rawTime = time, rawTimeUnitHint = hint, source = "playurl")
-    }
-
-    private fun extractResumeCandidateFromPlayerWbiV2(playerJson: JSONObject): ResumeCandidate? {
-        val data = playerJson.optJSONObject("data") ?: return null
-        val time = data.optLong("last_play_time", -1L).takeIf { it > 0 } ?: return null
-        val hint =
-            when {
-                time >= 10_000L -> RawTimeUnitHint.MILLIS_LIKELY
-                else -> RawTimeUnitHint.UNKNOWN
-            }
-        return ResumeCandidate(rawTime = time, rawTimeUnitHint = hint, source = "playerWbiV2")
-    }
-
-    private fun normalizeResumePositionMs(raw: Long, hint: RawTimeUnitHint, durationMs: Long?): Long? {
-        if (raw <= 0) return null
-        val dur = durationMs?.takeIf { it > 0 }
-        if (dur != null) {
-            return when {
-                raw in 1..dur -> raw
-                raw * 1000 in 1..dur -> raw * 1000
-                else -> raw
-            }
-        }
-        return when (hint) {
-            RawTimeUnitHint.MILLIS_LIKELY -> raw
-            RawTimeUnitHint.SECONDS_LIKELY -> raw * 1000
-            RawTimeUnitHint.UNKNOWN -> if (raw >= 10_000L) raw else raw * 1000
-        }
-    }
-
-    private fun shouldAutoResumeTo(positionMs: Long, durationMs: Long?): Boolean {
-        if (positionMs < 5_000L) return false
-        val dur = durationMs?.takeIf { it > 0 } ?: return true
-        return positionMs < (dur - 10_000L).coerceAtLeast(0L)
-    }
-
-    private fun maybeScheduleAutoResume(
-        playJson: JSONObject,
-        bvid: String,
-        cid: Long,
-        playbackToken: Int,
-    ) {
-        if (!BiliClient.prefs.playerAutoResumeEnabled) return
-        if (autoResumeCancelledByUser) return
-        if (playbackToken != autoResumeToken) return
-        val exo = player ?: return
-
-        val strictCidMatch = isMultiPagePlaylist(playlistItems, currentBvid)
-        extractResumeCandidateFromPlayJson(playJson)?.let { cand ->
-            val data = playJson.optJSONObject("data") ?: playJson.optJSONObject("result") ?: JSONObject()
-            val lastCid = data.optLong("last_play_cid", -1L).takeIf { it > 0 }
-            when {
-                lastCid != null && lastCid != cid -> Unit
-                strictCidMatch && lastCid == null -> Unit
-                else -> {
-                    scheduleAutoResume(exo = exo, candidate = cand, playbackToken = playbackToken)
-                    return
-                }
-            }
-        }
-
-        autoResumeJob?.cancel()
-        autoResumeJob =
-            lifecycleScope.launch {
-                val playerJson = runCatching { BiliApi.playerWbiV2(bvid = bvid, cid = cid) }.getOrNull() ?: return@launch
-                if (!isActive) return@launch
-                if (playbackToken != autoResumeToken) return@launch
-                if (autoResumeCancelledByUser) return@launch
-                val data = playerJson.optJSONObject("data") ?: JSONObject()
-                val lastCid = data.optLong("last_play_cid", -1L).takeIf { it > 0 }
-                if (lastCid != null && lastCid != cid) return@launch
-                if (strictCidMatch && lastCid == null) return@launch
-                val cand = extractResumeCandidateFromPlayerWbiV2(playerJson) ?: return@launch
-                scheduleAutoResume(exo = exo, candidate = cand, playbackToken = playbackToken)
-            }
-    }
-
-    private fun scheduleAutoResume(exo: ExoPlayer, candidate: ResumeCandidate, playbackToken: Int) {
-        if (autoResumeCancelledByUser) return
-        autoResumeJob?.cancel()
-        dismissAutoResumeHint()
-        trace?.log("resume:pending", "src=${candidate.source} raw=${candidate.rawTime}")
-
-        val delayMs = 2_000L
-        val showAtMs = SystemClock.elapsedRealtime()
-        val seekNotBeforeAtMs = showAtMs + delayMs
-        val previewDurationMs = exo.duration.takeIf { it > 0 } ?: currentViewDurationMs
-        val previewTargetMs = normalizeResumePositionMs(candidate.rawTime, candidate.rawTimeUnitHint, previewDurationMs)
-        if (previewTargetMs == null) return
-        if (!shouldAutoResumeTo(previewTargetMs, previewDurationMs)) return
-        showAutoResumeHint(targetMs = previewTargetMs)
-
-        autoResumeJob =
-            lifecycleScope.launch {
-                // Seeking too early (while the beginning is still buffering) can cause some long videos to get stuck
-                // with a black screen. Wait until the player becomes READY, then apply the minimum delay.
-                val readyDeadlineAtMs = SystemClock.elapsedRealtime() + 30_000L
-                while (isActive) {
-                    if (autoResumeCancelledByUser) return@launch
-                    if (playbackToken != autoResumeToken) return@launch
-                    val p = player ?: return@launch
-                    if (p !== exo) return@launch
-                    val state = p.playbackState
-                    if (state == Player.STATE_READY) break
-                    if (state == Player.STATE_ENDED) return@launch
-                    if (SystemClock.elapsedRealtime() >= readyDeadlineAtMs) return@launch
-                    delay(50L)
-                }
-
-                val remainMs = (seekNotBeforeAtMs - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
-                if (remainMs > 0) delay(remainMs)
-                if (!isActive) return@launch
-                if (autoResumeCancelledByUser) return@launch
-                if (playbackToken != autoResumeToken) return@launch
-                val p = player ?: return@launch
-                if (p !== exo) return@launch
-
-                val durationMs = p.duration.takeIf { it > 0 } ?: currentViewDurationMs
-                val targetMs = normalizeResumePositionMs(candidate.rawTime, candidate.rawTimeUnitHint, durationMs) ?: return@launch
-                if (!shouldAutoResumeTo(targetMs, durationMs)) return@launch
-                val clamped = durationMs?.let { dur -> targetMs.coerceIn(0L, (dur - 500L).coerceAtLeast(0L)) } ?: targetMs
-                trace?.log("resume:seek", "to=${clamped}ms src=${candidate.source}")
-                dismissAutoResumeHint()
-                p.seekTo(clamped)
-            }
     }
 
     private fun shouldReportHistoryNow(): Boolean {
@@ -3322,7 +1345,7 @@ class PlayerActivity : BaseActivity() {
             }
     }
 
-    private fun stopReportProgressLoop(flush: Boolean, reason: String) {
+    internal fun stopReportProgressLoop(flush: Boolean, reason: String) {
         reportProgressJob?.cancel()
         reportProgressJob = null
         if (flush) lifecycleScope.launch { reportProgressOnce(force = true, reason = reason) }
@@ -3386,7 +1409,7 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    private fun updateDanmakuButton() {
+    internal fun updateDanmakuButton() {
         binding.btnDanmaku.imageTintList = null
         binding.btnDanmaku.isSelected = session.danmaku.enabled
     }
@@ -3495,27 +1518,6 @@ class PlayerActivity : BaseActivity() {
         } catch (_: Throwable) {
             false
         }
-
-    internal fun refreshSettings(adapter: PlayerSettingsAdapter) {
-        val prefs = BiliClient.prefs
-        adapter.submit(
-            listOf(
-                PlayerSettingsAdapter.SettingItem("分辨率", resolutionSubtitle()),
-                PlayerSettingsAdapter.SettingItem("音轨", audioSubtitle()),
-                PlayerSettingsAdapter.SettingItem("视频编码", session.preferCodec),
-                PlayerSettingsAdapter.SettingItem("播放速度", String.format(Locale.US, "%.2fx", session.playbackSpeed)),
-                PlayerSettingsAdapter.SettingItem("播放模式", playbackModeSubtitle()),
-                PlayerSettingsAdapter.SettingItem("字幕语言", subtitleLangSubtitle()),
-                PlayerSettingsAdapter.SettingItem("字幕字体大小", session.subtitleTextSizeSp.toInt().toString()),
-                PlayerSettingsAdapter.SettingItem("弹幕透明度", String.format(Locale.US, "%.2f", session.danmaku.opacity)),
-                PlayerSettingsAdapter.SettingItem("弹幕字体大小", session.danmaku.textSizeSp.toInt().toString()),
-                PlayerSettingsAdapter.SettingItem("弹幕速度", session.danmaku.speedLevel.toString()),
-                PlayerSettingsAdapter.SettingItem("弹幕区域", areaText(session.danmaku.area)),
-                PlayerSettingsAdapter.SettingItem("调试信息", if (session.debugEnabled) "开" else "关"),
-                PlayerSettingsAdapter.SettingItem("底部常驻进度条", if (prefs.playerPersistentBottomProgressEnabled) "开" else "关"),
-            ),
-        )
-    }
 
     private fun selectCdnUrlsFromTrack(obj: JSONObject, preference: String): List<String> {
         val candidates = buildList {
@@ -3767,7 +1769,7 @@ class PlayerActivity : BaseActivity() {
         error("No playable url in playurl response")
     }
 
-    private fun createCdnFactory(kind: DebugStreamKind, urlCandidates: List<String>? = null): DataSource.Factory {
+    internal fun createCdnFactory(kind: DebugStreamKind, urlCandidates: List<String>? = null): DataSource.Factory {
         val listener =
             object : TransferListener {
                 override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
@@ -3799,7 +1801,7 @@ class PlayerActivity : BaseActivity() {
         return CdnFailoverDataSourceFactory(upstreamFactory = upstream, state = CdnFailoverState(kind = kind, candidates = uris))
     }
 
-    private fun buildMerged(
+    internal fun buildMerged(
         videoFactory: DataSource.Factory,
         audioFactory: DataSource.Factory,
         videoUrl: String,
@@ -3820,7 +1822,7 @@ class PlayerActivity : BaseActivity() {
         return MergingMediaSource(videoSource, audioSource)
     }
 
-    private fun buildProgressive(factory: DataSource.Factory, url: String, subtitle: MediaItem.SubtitleConfiguration?): MediaSource {
+    internal fun buildProgressive(factory: DataSource.Factory, url: String, subtitle: MediaItem.SubtitleConfiguration?): MediaSource {
         val subs = listOfNotNull(subtitle)
         val item =
             MediaItem.Builder()
@@ -3898,7 +1900,7 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    private suspend fun prepareSubtitleConfig(
+    internal suspend fun prepareSubtitleConfig(
         viewData: JSONObject,
         bvid: String,
         cid: Long,
@@ -3985,13 +1987,13 @@ class PlayerActivity : BaseActivity() {
         return buildSubtitleConfigFromItem(chosen, bvid, cid)
     }
 
-    private data class DanmakuMeta(
+    internal data class DanmakuMeta(
         val shield: DanmakuShield,
         val segmentTotal: Int,
         val segmentSizeMs: Int,
     )
 
-    private suspend fun prepareDanmakuMeta(cid: Long, aid: Long?, trace: PlaybackTrace? = null): DanmakuMeta {
+    internal suspend fun prepareDanmakuMeta(cid: Long, aid: Long?, trace: PlaybackTrace? = null): DanmakuMeta {
         trace?.log("danmakuMeta:prepare:start", "cid=$cid aid=${aid ?: -1}")
         return withContext(Dispatchers.IO) {
             val prefs = BiliClient.prefs
@@ -4033,7 +2035,7 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    private fun applyDanmakuMeta(meta: DanmakuMeta) {
+    internal fun applyDanmakuMeta(meta: DanmakuMeta) {
         cancelDanmakuLoading(reason = "meta_update")
         danmakuShield = meta.shield
         danmakuSegmentTotal = meta.segmentTotal
@@ -4042,7 +2044,7 @@ class PlayerActivity : BaseActivity() {
         danmakuSegmentItems.clear()
     }
 
-    private fun requestDanmakuSegmentsForPosition(positionMs: Long, immediate: Boolean) {
+    internal fun requestDanmakuSegmentsForPosition(positionMs: Long, immediate: Boolean) {
         val debug = session.debugEnabled
         if (danmakuShield == null) {
             if (debug) AppLog.d("Player", "danmaku prefetch skipped: shield=null")
@@ -4148,7 +2150,7 @@ class PlayerActivity : BaseActivity() {
             }
     }
 
-    private fun cancelDanmakuLoading(reason: String) {
+    internal fun cancelDanmakuLoading(reason: String) {
         danmakuLoadGeneration++
         danmakuLoadJob?.cancel()
         danmakuLoadJob = null
@@ -4188,24 +2190,7 @@ class PlayerActivity : BaseActivity() {
         binding.danmakuView.trimToTimeRange(minTimeMs = minTimeMs, maxTimeMs = maxTimeMs)
     }
 
-    internal data class PlayerSessionSettings(
-        val playbackSpeed: Float,
-        val preferCodec: String,
-        val preferAudioId: Int,
-        val targetAudioId: Int = 0,
-        val actualAudioId: Int = 0,
-        val preferredQn: Int,
-        val targetQn: Int,
-        val actualQn: Int = 0,
-        val playbackModeOverride: String?,
-        val subtitleEnabled: Boolean,
-        val subtitleLangOverride: String?,
-        val subtitleTextSizeSp: Float,
-        val danmaku: DanmakuSessionSettings,
-        val debugEnabled: Boolean,
-    )
-
-    private fun resolutionSubtitle(): String {
+    internal fun resolutionSubtitle(): String {
         val qn =
             session.actualQn.takeIf { it > 0 }
                 ?: session.targetQn.takeIf { it > 0 }
@@ -4213,7 +2198,7 @@ class PlayerActivity : BaseActivity() {
         return qnLabel(qn)
     }
 
-    private fun audioSubtitle(): String {
+    internal fun audioSubtitle(): String {
         val id =
             session.actualAudioId.takeIf { it > 0 }
                 ?: session.targetAudioId.takeIf { it > 0 }
@@ -4221,7 +2206,7 @@ class PlayerActivity : BaseActivity() {
         return audioLabel(id)
     }
 
-    private fun playUrlParamsForSession(): Pair<Int, Int> {
+    internal fun playUrlParamsForSession(): Pair<Int, Int> {
         // Always request the highest; B 站会根据登录/会员权限返回实际可用清晰度。
         val qn = 127
         var fnval = 4048 // all available DASH video
@@ -4232,7 +2217,7 @@ class PlayerActivity : BaseActivity() {
         return qn to fnval
     }
 
-    private fun applyResolutionFallbackIfNeeded(requestedQn: Int, actualQn: Int) {
+    internal fun applyResolutionFallbackIfNeeded(requestedQn: Int, actualQn: Int) {
         var changed = false
         if (actualQn > 0 && session.actualQn != actualQn) {
             session = session.copy(actualQn = actualQn)
@@ -4252,7 +2237,7 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    private fun applyAudioFallbackIfNeeded(requestedAudioId: Int, actualAudioId: Int) {
+    internal fun applyAudioFallbackIfNeeded(requestedAudioId: Int, actualAudioId: Int) {
         var changed = false
         if (actualAudioId > 0 && session.actualAudioId != actualAudioId) {
             session = session.copy(actualAudioId = actualAudioId)
@@ -4271,7 +2256,7 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    private fun parseDashVideoQnList(playJson: JSONObject): List<Int> {
+    internal fun parseDashVideoQnList(playJson: JSONObject): List<Int> {
         val data = playJson.optJSONObject("data") ?: playJson.optJSONObject("result") ?: return emptyList()
         val dash = data.optJSONObject("dash") ?: return emptyList()
         val videos = dash.optJSONArray("video") ?: return emptyList()
@@ -4289,7 +2274,7 @@ class PlayerActivity : BaseActivity() {
         return list.distinct().sortedBy { qnRank(it) }
     }
 
-    private fun parseDashAudioIdList(playJson: JSONObject, constraints: PlaybackConstraints): List<Int> {
+    internal fun parseDashAudioIdList(playJson: JSONObject, constraints: PlaybackConstraints): List<Int> {
         val data = playJson.optJSONObject("data") ?: playJson.optJSONObject("result") ?: return emptyList()
         val dash = data.optJSONObject("dash") ?: return emptyList()
         val out = ArrayList<Int>(8)
@@ -4335,21 +2320,21 @@ class PlayerActivity : BaseActivity() {
         const val EXTRA_PLAYLIST_INDEX = "playlist_index"
         private const val ACTIVITY_STACK_GROUP: String = "player_up_flow"
         private const val ACTIVITY_STACK_MAX_DEPTH: Int = 3
-        private const val SEEK_MAX = 10_000
-        private const val AUTO_HIDE_MS = 4_000L
-        private const val EDGE_TAP_THRESHOLD = 0.4f
+        internal const val SEEK_MAX = 10_000
+        internal const val AUTO_HIDE_MS = 4_000L
+        internal const val EDGE_TAP_THRESHOLD = 0.4f
         private const val TAP_SEEK_ACTIVE_MS = 1_200L
-        private const val SMART_SEEK_WINDOW_MS = 900L
-        private const val HOLD_SCRUB_TICK_MS = 120L
-        private const val HOLD_SCRUB_TRAVERSE_MS = 20_000L
-        private const val HOLD_SCRUB_SHORT_VIDEO_THRESHOLD_MS = 40_000L
-        private const val HOLD_SCRUB_SHORT_SPEED_MS_PER_S = 4_000L
+        internal const val SMART_SEEK_WINDOW_MS = 900L
+        internal const val HOLD_SCRUB_TICK_MS = 120L
+        internal const val HOLD_SCRUB_TRAVERSE_MS = 20_000L
+        internal const val HOLD_SCRUB_SHORT_VIDEO_THRESHOLD_MS = 40_000L
+        internal const val HOLD_SCRUB_SHORT_SPEED_MS_PER_S = 4_000L
         private const val BACK_DOUBLE_PRESS_WINDOW_MS = 1_500L
-        private const val SEEK_HINT_HIDE_DELAY_MS = 900L
-        private const val SEEK_OSD_HIDE_DELAY_MS = 1_500L
-        private const val AUTO_SKIP_START_WINDOW_MS = 1_000L
-        private const val AUTO_SKIP_DELAY_MS = 2_000L
-        private const val KEY_SCRUB_END_DELAY_MS = 800L
+        internal const val SEEK_HINT_HIDE_DELAY_MS = 900L
+        internal const val SEEK_OSD_HIDE_DELAY_MS = 1_500L
+        internal const val AUTO_SKIP_START_WINDOW_MS = 1_000L
+        internal const val AUTO_SKIP_DELAY_MS = 2_000L
+        internal const val KEY_SCRUB_END_DELAY_MS = 800L
         private const val DANMAKU_DEFAULT_SEGMENT_MS = 6 * 60 * 1000
         private const val DANMAKU_PREFETCH_SEGMENTS = 2
         private const val DANMAKU_PREFETCH_INTERVAL_MS = 1_000L

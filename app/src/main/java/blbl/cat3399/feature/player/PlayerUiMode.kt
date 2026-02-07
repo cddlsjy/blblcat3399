@@ -7,9 +7,125 @@ import android.view.ViewGroup.MarginLayoutParams
 import androidx.core.content.ContextCompat
 import blbl.cat3399.R
 import blbl.cat3399.core.net.BiliClient
+import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.databinding.ActivityPlayerBinding
+import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
+
+/**
+ * Auto-scale UI based on the effective 16:9 video content size inside [playerView].
+ *
+ * Baseline is the "known good" tuning target:
+ * - 1920x1080 with density x1.50 -> content height ~= 720dp.
+ */
+object PlayerContentAutoScale {
+    private const val BASELINE_CONTENT_HEIGHT_DP = 720f
+
+    // Conservative scaling curve: reduces sensitivity for large screens.
+    private const val EXPONENT = 0.99f
+
+    private const val MIN_AUTO_SCALE = 0.85f
+    private const val MAX_AUTO_SCALE = 1.35f
+
+    fun factor(playerView: View, density: Float): Float {
+        val d = density.takeIf { it.isFinite() && it > 0f } ?: 1f
+        val widthDp = playerView.width / d
+        val heightDp = playerView.height / d
+        if (!widthDp.isFinite() || !heightDp.isFinite() || widthDp <= 0f || heightDp <= 0f) return 1f
+
+        // 16:9 content is limited by the smaller of view height and (view width * 9/16).
+        val contentHeightDp = min(heightDp, widthDp * 9f / 16f)
+        if (contentHeightDp <= 0f) return 1f
+
+        val raw = contentHeightDp / BASELINE_CONTENT_HEIGHT_DP
+        val scaled = raw.pow(EXPONENT)
+        return scaled.coerceIn(MIN_AUTO_SCALE, MAX_AUTO_SCALE)
+    }
+}
+
+object PlayerOsdSizing {
+    private enum class SizeTier {
+        SMALL,
+        MEDIUM,
+        LARGE,
+    }
+
+    fun applyTheme(activity: Activity) {
+        val tier = tierFromPref(BiliClient.prefs.sidebarSize)
+        val overlay =
+            when (tier) {
+                SizeTier.SMALL -> R.style.ThemeOverlay_Blbl_PlayerOsd_Normal_Small
+                SizeTier.MEDIUM -> R.style.ThemeOverlay_Blbl_PlayerOsd_Normal_Medium
+                SizeTier.LARGE -> R.style.ThemeOverlay_Blbl_PlayerOsd_Normal_Large
+            }
+        activity.theme.applyStyle(overlay, true)
+    }
+
+    fun applyToViews(activity: Activity, binding: ActivityPlayerBinding, scale: Float = 1.0f) {
+        val s = scale.takeIf { it.isFinite() && it > 0f } ?: 1.0f
+        fun scaled(v: Int): Int = (v * s).roundToInt()
+
+        val targetSize = scaled(activity.themeDimenPx(R.attr.playerOsdButtonTargetSize)).coerceAtLeast(1)
+        val padTransport = scaled(activity.themeDimenPx(R.attr.playerOsdPadTransport)).coerceAtLeast(0)
+        val padNormal = scaled(activity.themeDimenPx(R.attr.playerOsdPadNormal)).coerceAtLeast(0)
+        val padSmall = scaled(activity.themeDimenPx(R.attr.playerOsdPadSmall)).coerceAtLeast(0)
+        val gap = scaled(activity.themeDimenPx(R.attr.playerOsdGap)).coerceAtLeast(0)
+
+        listOf(binding.btnPrev, binding.btnPlayPause, binding.btnNext).forEach { btn ->
+            setSize(btn, targetSize, targetSize)
+            btn.setPadding(padTransport, padTransport, padTransport, padTransport)
+            setEndMargin(btn, gap)
+        }
+        listOf(binding.btnSubtitle, binding.btnDanmaku, binding.btnUp).forEach { btn ->
+            setSize(btn, targetSize, targetSize)
+            btn.setPadding(padNormal, padNormal, padNormal, padNormal)
+            setEndMargin(btn, gap)
+        }
+        listOf(binding.btnLike, binding.btnCoin, binding.btnFav, binding.btnPlaylist).forEach { btn ->
+            setSize(btn, targetSize, targetSize)
+            btn.setPadding(padSmall, padSmall, padSmall, padSmall)
+            setEndMargin(btn, gap)
+        }
+        run {
+            val btn = binding.btnAdvanced
+            setSize(btn, targetSize, targetSize)
+            btn.setPadding(padSmall, padSmall, padSmall, padSmall)
+            setEndMargin(btn, 0)
+        }
+    }
+
+    private fun tierFromPref(prefValue: String): SizeTier {
+        return when (prefValue) {
+            AppPrefs.SIDEBAR_SIZE_SMALL -> SizeTier.SMALL
+            AppPrefs.SIDEBAR_SIZE_LARGE -> SizeTier.LARGE
+            else -> SizeTier.MEDIUM
+        }
+    }
+
+    private fun Activity.themeDimenPx(attr: Int): Int {
+        val out = TypedValue()
+        if (!theme.resolveAttribute(attr, out, true)) return 0
+        return if (out.resourceId != 0) resources.getDimensionPixelSize(out.resourceId)
+        else TypedValue.complexToDimensionPixelSize(out.data, resources.displayMetrics)
+    }
+
+    private fun setSize(view: View, widthPx: Int, heightPx: Int) {
+        val lp = view.layoutParams ?: return
+        if (lp.width == widthPx && lp.height == heightPx) return
+        lp.width = widthPx
+        lp.height = heightPx
+        view.layoutParams = lp
+    }
+
+    private fun setEndMargin(view: View, marginEndPx: Int) {
+        val lp = view.layoutParams as? MarginLayoutParams ?: return
+        if (lp.marginEnd == marginEndPx) return
+        lp.marginEnd = marginEndPx
+        view.layoutParams = lp
+    }
+}
 
 /**
  * Shared UI scaling logic for both video and live players.
@@ -414,4 +530,3 @@ internal object PlayerUiMode {
         view.layoutParams = lp
     }
 }
-
