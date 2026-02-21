@@ -42,42 +42,46 @@ object NoteImageRepository {
             }
         }
 
-        val waiterList =
-            waiters.compute(safe) { _, existing ->
-                val list = existing ?: mutableListOf()
+        // Avoid ConcurrentHashMap.compute(...) here: on Android 5.1, java.util.function.* is missing
+        // and Kotlin's SAM adapter for BiFunction can crash with NoClassDefFoundError.
+        synchronized(lock) {
+            val list = waiters[safe]
+            if (list != null) {
                 list.add(onResult)
-                list
+            } else {
+                waiters[safe] = mutableListOf(onResult)
             }
-        if (waiterList == null) {
-            onResult(emptyList())
-            return
-        }
 
-        if (inFlight[safe]?.isActive == true) return
+            if (inFlight[safe]?.isActive == true) return
 
-        val job =
-            scope.launch {
-                val images =
-                    runCatching {
-                        withContext(Dispatchers.IO) {
-                            fetchNoteImages(cvid = safe)
+            val job =
+                scope.launch {
+                    val images =
+                        runCatching {
+                            withContext(Dispatchers.IO) {
+                                fetchNoteImages(cvid = safe)
+                            }
+                        }.onFailure { t ->
+                            AppLog.w(TAG, "load failed cvid=$safe", t)
+                        }.getOrDefault(emptyList())
+
+                    synchronized(lock) {
+                        cache.put(safe, images)
+                    }
+
+                    val callbacks =
+                        synchronized(lock) {
+                            val out = waiters.remove(safe).orEmpty().toList()
+                            inFlight.remove(safe)
+                            out
                         }
-                    }.onFailure { t ->
-                        AppLog.w(TAG, "load failed cvid=$safe", t)
-                    }.getOrDefault(emptyList())
-
-                synchronized(lock) {
-                    cache.put(safe, images)
+                    callbacks.forEach { cb ->
+                        runCatching { cb(images) }
+                    }
                 }
 
-                val callbacks = waiters.remove(safe).orEmpty().toList()
-                inFlight.remove(safe)
-                callbacks.forEach { cb ->
-                    runCatching { cb(images) }
-                }
-            }
-
-        inFlight[safe] = job
+            inFlight[safe] = job
+        }
     }
 
     private suspend fun fetchNoteImages(cvid: Long): List<String> {
@@ -124,4 +128,3 @@ object NoteImageRepository {
         return out
     }
 }
-

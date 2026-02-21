@@ -57,43 +57,48 @@ object EmoteBitmapLoader {
         }
 
         // Deduplicate in-flight requests and fan-out results to all waiters.
-        val waiterList =
-            waiters.compute(normalized) { _, existing ->
-                val list = existing ?: mutableListOf()
+        //
+        // Avoid ConcurrentHashMap.compute(...) here: on Android 5.1, java.util.function.* is missing
+        // and Kotlin's SAM adapter for BiFunction can crash with NoClassDefFoundError.
+        synchronized(lock) {
+            val list = waiters[normalized]
+            if (list != null) {
                 list.add(onResult)
-                list
+            } else {
+                waiters[normalized] = mutableListOf(onResult)
             }
-        if (waiterList == null) {
-            onResult(null)
-            return
-        }
-        val alreadyRunning = inFlight[normalized]?.isActive == true
-        if (alreadyRunning) return
 
-        val job =
-            scope.launch {
-                val bmp =
-                    runCatching {
-                        val bytes = withContext(Dispatchers.IO) { BiliClient.getBytes(normalized) }
-                        withContext(Dispatchers.Default) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
-                    }.onFailure { t ->
-                        AppLog.w(TAG, "load failed url=$normalized", t)
-                    }.getOrNull()
+            if (inFlight[normalized]?.isActive == true) return
 
-                if (bmp != null) {
-                    synchronized(lock) {
-                        cache.put(normalized, bmp)
+            val job =
+                scope.launch {
+                    val bmp =
+                        runCatching {
+                            val bytes = withContext(Dispatchers.IO) { BiliClient.getBytes(normalized) }
+                            withContext(Dispatchers.Default) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+                        }.onFailure { t ->
+                            AppLog.w(TAG, "load failed url=$normalized", t)
+                        }.getOrNull()
+
+                    if (bmp != null) {
+                        synchronized(lock) {
+                            cache.put(normalized, bmp)
+                        }
+                    }
+
+                    val callbacks =
+                        synchronized(lock) {
+                            val out = waiters.remove(normalized).orEmpty().toList()
+                            inFlight.remove(normalized)
+                            out
+                        }
+                    callbacks.forEach { cb ->
+                        runCatching { cb(bmp) }
                     }
                 }
 
-                val callbacks = waiters.remove(normalized).orEmpty().toList()
-                inFlight.remove(normalized)
-                callbacks.forEach { cb ->
-                    runCatching { cb(bmp) }
-                }
-            }
-
-        inFlight[normalized] = job
+            inFlight[normalized] = job
+        }
     }
 
     private fun normalizeImageUrl(url: String?): String? {
