@@ -79,6 +79,7 @@ enum class SettingId(
     DeviceCpu("device_cpu"),
     DeviceModel("device_model"),
     DeviceSystem("device_system"),
+    DeviceDecoder("device_decoder"),
     DeviceScreen("device_screen"),
     DeviceRam("device_ram"),
 }

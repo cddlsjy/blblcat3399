@@ -1,5 +1,7 @@
 package blbl.cat3399.feature.settings
 
+import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.os.Build
 import android.view.KeyEvent
 import android.view.View
@@ -10,6 +12,7 @@ import blbl.cat3399.BuildConfig
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.FocusTreeUtils
 import blbl.cat3399.databinding.ActivitySettingsBinding
+import java.util.Locale
 
 class SettingsRenderer(
     private val activity: SettingsActivity,
@@ -21,6 +24,7 @@ class SettingsRenderer(
     private val onSectionShown: (String) -> Unit,
 ) {
     private var focusListener: android.view.ViewTreeObserver.OnGlobalFocusChangeListener? = null
+    private val deviceCodecSupportValue: String by lazy { detectHardDecoderSupportValue() }
 
     fun installFocusListener() {
         if (focusListener != null) return
@@ -287,11 +291,59 @@ class SettingsRenderer(
                     SettingEntry(SettingId.DeviceSystem, "系统", "Android ${Build.VERSION.RELEASE} API${Build.VERSION.SDK_INT}", null),
                     SettingEntry(SettingId.DeviceScreen, "屏幕", SettingsText.screenText(activity.resources), null),
                     SettingEntry(SettingId.DeviceRam, "RAM", SettingsText.ramText(activity), null),
+                    SettingEntry(SettingId.DeviceDecoder, "硬件解码器", deviceCodecSupportValue, null),
                 )
 
             else -> emptyList()
         }
     }
+
+    private fun detectHardDecoderSupportValue(): String {
+        val support = runCatching { queryHardDecoderSupport() }.getOrNull() ?: return "-"
+        return "H264 ${markSupport(support.h264)} / H265 ${markSupport(support.h265)} / AV1 ${markSupport(support.av1)}"
+    }
+
+    private fun markSupport(supported: Boolean): String = if (supported) "✓" else "✗"
+
+    private fun queryHardDecoderSupport(): HardDecoderSupport {
+        var h264 = false
+        var h265 = false
+        var av1 = false
+        for (codecInfo in MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos) {
+            if (codecInfo.isEncoder) continue
+            if (!isHardwareDecoder(codecInfo)) continue
+            for (mime in codecInfo.supportedTypes) {
+                when (mime.lowercase(Locale.US)) {
+                    "video/avc" -> h264 = true
+                    "video/hevc" -> h265 = true
+                    "video/av01", "video/av1" -> av1 = true
+                }
+            }
+            if (h264 && h265 && av1) break
+        }
+        return HardDecoderSupport(h264 = h264, h265 = h265, av1 = av1)
+    }
+
+    private fun isHardwareDecoder(codecInfo: MediaCodecInfo): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (codecInfo.isAlias) return false
+            return codecInfo.isHardwareAccelerated
+        }
+        val name = codecInfo.name.lowercase(Locale.US)
+        if (name.startsWith("omx.google.")) return false
+        if (name.startsWith("c2.android.")) return false
+        if (name.startsWith("c2.google.")) return false
+        if (name.contains(".sw.")) return false
+        if (name.contains("software")) return false
+        if (name.contains("ffmpeg")) return false
+        return true
+    }
+
+    private data class HardDecoderSupport(
+        val h264: Boolean,
+        val h265: Boolean,
+        val av1: Boolean,
+    )
 
     private fun gaiaVgateStatusText(): String {
         val now = System.currentTimeMillis()
