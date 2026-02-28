@@ -218,7 +218,7 @@
             android:contentDescription="@string/app_name"
             android:padding="10dp"
             android:src="@drawable/ic_action_like"
-            android:tint="?android:attr/textColorSecondary" />
+            app:tint="?android:attr/textColorSecondary" />
     </com.google.android.material.card.MaterialCardView>
 
     <com.google.android.material.card.MaterialCardView
@@ -245,7 +245,7 @@
             android:contentDescription="@string/app_name"
             android:padding="10dp"
             android:src="@drawable/ic_action_coin"
-            android:tint="?android:attr/textColorSecondary" />
+            app:tint="?android:attr/textColorSecondary" />
     </com.google.android.material.card.MaterialCardView>
 
     <com.google.android.material.card.MaterialCardView
@@ -272,7 +272,7 @@
             android:contentDescription="@string/app_name"
             android:padding="10dp"
             android:src="@drawable/ic_action_fav"
-            android:tint="?android:attr/textColorSecondary" />
+            app:tint="?android:attr/textColorSecondary" />
     </com.google.android.material.card.MaterialCardView>
 
     <androidx.constraintlayout.widget.Barrier
@@ -350,7 +350,7 @@
                 android:layout_marginEnd="6dp"
                 android:contentDescription="@string/my_episode_order"
                 android:src="@drawable/ic_sort"
-                android:tint="?android:attr/textColorSecondary" />
+                app:tint="?android:attr/textColorSecondary" />
 
             <TextView
                 android:id="@+id/tv_parts_order"
@@ -422,7 +422,7 @@
                 android:layout_marginEnd="6dp"
                 android:contentDescription="@string/my_episode_order"
                 android:src="@drawable/ic_sort"
-                android:tint="?android:attr/textColorSecondary" />
+                app:tint="?android:attr/textColorSecondary" />
 
             <TextView
                 android:id="@+id/tv_season_order"

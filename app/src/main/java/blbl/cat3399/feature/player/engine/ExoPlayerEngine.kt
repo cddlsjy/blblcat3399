@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
+
 package blbl.cat3399.feature.player.engine
 
 import android.content.Context

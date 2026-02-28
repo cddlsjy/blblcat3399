@@ -28,7 +28,6 @@ internal class PopupHost private constructor(
     private val activity: ComponentActivity,
     private val contentRoot: FrameLayout,
     private val hostView: FrameLayout,
-    private val noticeLayer: FrameLayout,
     private val modalLayer: FrameLayout,
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -339,117 +338,12 @@ internal class PopupHost private constructor(
         dismissModalInternal(animate = true, restoreFocus = true)
     }
 
-    fun showNotice(
-        view: View,
-        durationMs: Long,
-    ): PopupHandle {
-        checkMainThread()
-
-        val layer = noticeLayer
-        dismissNoticeInternal(animate = false)
-
-        view.isClickable = true
-        view.isFocusable = false
-        view.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        view.setOnClickListener { dismissNotice() }
-
-        val lp =
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                val marginH = dp(view.context, 24f)
-                val marginB = dp(view.context, 32f) + systemBarsInsets.bottom
-                setMargins(marginH, 0, marginH, marginB)
-            }
-
-        layer.addView(view, lp)
-        layer.setTag(R.id.tag_popup_notice_view, view)
-
-        val hideRunnable = Runnable { dismissNotice() }
-        layer.setTag(R.id.tag_popup_notice_hide_runnable, hideRunnable)
-        mainHandler.postDelayed(hideRunnable, durationMs)
-
-        // Animate in.
-        val startOffsetPx = dp(view.context, 16f).toFloat()
-        view.alpha = 0f
-        view.translationY = startOffsetPx
-        view.animate()
-            .alpha(1f)
-            .translationY(0f)
-            .setDuration(180L)
-            .start()
-
-        return object : PopupHandle {
-            override val isShowing: Boolean
-                get() = layer.getTag(R.id.tag_popup_notice_view) === view && view.isAttachedToWindow
-
-            override fun dismiss() {
-                if (Looper.myLooper() != Looper.getMainLooper()) {
-                    mainHandler.post { dismiss() }
-                    return
-                }
-                if (layer.getTag(R.id.tag_popup_notice_view) !== view) return
-                dismissNotice()
-            }
-        }
-    }
-
-    fun dismissNotice() {
-        checkMainThread()
-        dismissNoticeInternal(animate = true)
-    }
-
-    private fun dismissNoticeInternal(animate: Boolean) {
-        checkMainThread()
-        val layer = noticeLayer
-        val hide = layer.getTag(R.id.tag_popup_notice_hide_runnable) as? Runnable
-        if (hide != null) mainHandler.removeCallbacks(hide)
-
-        val current = layer.getTag(R.id.tag_popup_notice_view) as? View
-        layer.setTag(R.id.tag_popup_notice_view, null)
-        layer.setTag(R.id.tag_popup_notice_hide_runnable, null)
-        if (current == null) return
-
-        current.animate().cancel()
-        if (!animate) {
-            runCatching { layer.removeView(current) }
-            return
-        }
-
-        val endOffsetPx = dp(current.context, 12f).toFloat()
-        current.animate()
-            .alpha(0f)
-            .translationY(endOffsetPx)
-            .setDuration(160L)
-            .withEndAction {
-                if (current.parent === layer) {
-                    runCatching { layer.removeView(current) }
-                }
-            }
-            .start()
-    }
-
     fun applyInsets(insets: WindowInsetsCompat) {
         systemBarsInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
         imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
         modalEntry?.rootView?.let { modalRoot ->
             val card = modalRoot.findViewById<View>(R.id.card) ?: return@let
             applyModalSizeAndInsets(dialogContext = modalRoot.context, modalRoot = modalRoot, card = card)
-        }
-
-        (noticeLayer.getTag(R.id.tag_popup_notice_view) as? View)?.let { notice ->
-            (notice.layoutParams as? FrameLayout.LayoutParams)?.let { lp ->
-                val marginH = dp(notice.context, 24f)
-                val marginB = dp(notice.context, 32f) + systemBarsInsets.bottom
-                if (lp.leftMargin != marginH || lp.rightMargin != marginH || lp.bottomMargin != marginB) {
-                    lp.leftMargin = marginH
-                    lp.rightMargin = marginH
-                    lp.bottomMargin = marginB
-                    notice.layoutParams = lp
-                }
-            }
         }
     }
 
@@ -616,20 +510,6 @@ internal class PopupHost private constructor(
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 }
 
-            val noticeLayer =
-                FrameLayout(activity).apply {
-                    layoutParams =
-                        FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                        )
-                    clipChildren = false
-                    clipToPadding = false
-                    isClickable = false
-                    isFocusable = false
-                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                }
-
             val modalLayer =
                 FrameLayout(activity).apply {
                     layoutParams =
@@ -644,11 +524,10 @@ internal class PopupHost private constructor(
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 }
 
-            hostView.addView(noticeLayer)
             hostView.addView(modalLayer)
             contentRoot.addView(hostView)
 
-            val host = PopupHost(activity = activity, contentRoot = contentRoot, hostView = hostView, noticeLayer = noticeLayer, modalLayer = modalLayer)
+            val host = PopupHost(activity = activity, contentRoot = contentRoot, hostView = hostView, modalLayer = modalLayer)
             contentRoot.setTag(R.id.tag_popup_host, host)
 
             ViewCompat.setOnApplyWindowInsetsListener(hostView) { _, insets ->

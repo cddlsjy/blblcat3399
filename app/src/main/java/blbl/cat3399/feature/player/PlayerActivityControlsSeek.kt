@@ -137,40 +137,18 @@ internal fun PlayerActivity.showSeekOsd(posMs: Long, durationMs: Long, bufferedP
 }
 
 internal fun PlayerActivity.ensureBottomBarConstraintSets() {
-    if (bottomBarFullConstraints != null && bottomBarSeekConstraints != null) return
+    if (bottomBarFullConstraints != null) return
     bottomBarFullConstraints =
         ConstraintSet().also { set ->
             set.clone(binding.bottomBar)
             set.setVisibility(R.id.controls_row, View.VISIBLE)
             set.setVisibility(R.id.tv_time, View.VISIBLE)
         }
-    bottomBarSeekConstraints =
-        ConstraintSet().also { set ->
-            set.clone(binding.bottomBar)
-            // Seek OSD: show SeekBar + time only.
-            set.setVisibility(R.id.controls_row, View.GONE)
-            set.setVisibility(R.id.tv_time, View.VISIBLE)
-            // Ensure the (gone) controls row doesn't constrain the bottom edge in wrap-content mode.
-            set.clear(R.id.controls_row, ConstraintSet.TOP)
-            set.clear(R.id.controls_row, ConstraintSet.BOTTOM)
-
-            // Move time text below SeekBar so it can remain visible without the button row.
-            set.clear(R.id.tv_time, ConstraintSet.TOP)
-            set.clear(R.id.tv_time, ConstraintSet.BOTTOM)
-            set.connect(R.id.tv_time, ConstraintSet.TOP, R.id.seek_progress, ConstraintSet.BOTTOM)
-            set.connect(R.id.tv_time, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
-            set.setVerticalBias(R.id.tv_time, 1.0f)
-        }
 }
 
 internal fun PlayerActivity.applyBottomBarFullLayout() {
     ensureBottomBarConstraintSets()
     bottomBarFullConstraints?.applyTo(binding.bottomBar)
-}
-
-internal fun PlayerActivity.applyBottomBarSeekLayout() {
-    ensureBottomBarConstraintSets()
-    bottomBarSeekConstraints?.applyTo(binding.bottomBar)
 }
 
 internal fun PlayerActivity.scheduleHideSeekOsd() {

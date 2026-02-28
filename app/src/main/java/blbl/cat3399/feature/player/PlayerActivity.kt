@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
+
 package blbl.cat3399.feature.player
 
 import android.content.Intent
@@ -186,7 +188,6 @@ class PlayerActivity : BaseActivity() {
     internal var seekOsdToken: Long = 0L
     internal var transientSeekOsdVisible: Boolean = false
     internal var bottomBarFullConstraints: ConstraintSet? = null
-    internal var bottomBarSeekConstraints: ConstraintSet? = null
 
     internal enum class OsdMode {
         Hidden,

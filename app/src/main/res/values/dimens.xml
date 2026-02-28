@@ -44,49 +44,8 @@
     <dimen name="player_recommend_card_margin">6dp</dimen>
 
     <!-- Video detail: header -->
-    <dimen name="video_detail_header_padding_start">16dp</dimen>
-    <dimen name="video_detail_header_padding_top">16dp</dimen>
-    <dimen name="video_detail_header_padding_end">16dp</dimen>
-    <dimen name="video_detail_header_padding_bottom">12dp</dimen>
-
     <dimen name="video_detail_header_cover_width">480dp</dimen>
     <dimen name="video_detail_header_cover_width_poster">220dp</dimen>
-
-    <dimen name="video_detail_header_title_margin_start">16dp</dimen>
-    <dimen name="video_detail_header_title_margin_end">12dp</dimen>
-    <dimen name="video_detail_header_title_text_size">30sp</dimen>
-
-    <dimen name="video_detail_header_up_card_margin_top">12dp</dimen>
-    <dimen name="video_detail_header_up_card_corner_radius">14dp</dimen>
-    <dimen name="video_detail_header_up_card_stroke_width">2dp</dimen>
-    <dimen name="video_detail_header_up_card_padding_h">12dp</dimen>
-    <dimen name="video_detail_header_up_card_padding_v">10dp</dimen>
-    <dimen name="video_detail_header_up_avatar_size">56dp</dimen>
-    <dimen name="video_detail_header_up_name_margin_start">12dp</dimen>
-    <dimen name="video_detail_header_up_name_max_width">320dp</dimen>
-    <dimen name="video_detail_header_up_name_text_size">22sp</dimen>
-
-    <dimen name="video_detail_header_desc_margin_top">12dp</dimen>
-    <dimen name="video_detail_header_desc_margin_end">12dp</dimen>
-    <dimen name="video_detail_header_desc_text_size">20sp</dimen>
-
-    <dimen name="video_detail_header_play_margin_top">12dp</dimen>
-    <dimen name="video_detail_header_play_text_size">22sp</dimen>
-    <dimen name="video_detail_header_play_corner_radius">14dp</dimen>
-    <dimen name="video_detail_header_play_stroke_width">2dp</dimen>
-
-    <dimen name="video_detail_header_parts_margin_top">20dp</dimen>
-    <dimen name="video_detail_header_season_margin_top">8dp</dimen>
-    <dimen name="video_detail_header_recommend_margin_top">16dp</dimen>
-    <dimen name="video_detail_header_section_text_size">22sp</dimen>
-    <dimen name="video_detail_header_playlist_padding_v">8dp</dimen>
-
-    <!-- Video detail: playlist item -->
-    <dimen name="video_detail_playlist_item_height">52dp</dimen>
-    <dimen name="video_detail_playlist_item_margin">8dp</dimen>
-    <dimen name="video_detail_playlist_item_min_width">140dp</dimen>
-    <dimen name="video_detail_playlist_item_text_size">16sp</dimen>
-    <dimen name="video_detail_playlist_item_corner_radius">20dp</dimen>
 
     <!-- Video detail: horizontal card section -->
     <dimen name="video_detail_section_card_width">260dp</dimen>
@@ -143,11 +102,8 @@
 
     <dimen name="player_online_text_size">16sp</dimen>
 
-    <dimen name="player_clock_margin_top">12dp</dimen>
     <dimen name="player_clock_margin_start">14dp</dimen>
     <dimen name="player_clock_margin_end">16dp</dimen>
-    <dimen name="player_clock_padding_h">14dp</dimen>
-    <dimen name="player_clock_padding_v">8dp</dimen>
     <dimen name="player_clock_text_size">24sp</dimen>
 
     <dimen name="player_title_meta_margin_top">4dp</dimen>
@@ -172,15 +128,6 @@
     <dimen name="player_controls_row_height">70dp</dimen>
     <dimen name="player_controls_row_margin_start">16dp</dimen>
     <dimen name="player_controls_row_margin_end">12dp</dimen>
-
-    <dimen name="player_control_button_size">59dp</dimen>
-    <dimen name="player_control_button_size_main">52dp</dimen>
-    <dimen name="player_control_button_size_main_play">54dp</dimen>
-    <dimen name="player_control_button_height_subtitle">61dp</dimen>
-    <dimen name="player_control_button_size_settings">51dp</dimen>
-    <dimen name="player_control_button_padding_main">2.6dp</dimen>
-    <dimen name="player_control_button_padding">4dp</dimen>
-    <dimen name="player_control_button_gap">3dp</dimen>
 
     <dimen name="player_time_margin_end">12dp</dimen>
     <dimen name="player_time_text_size">22sp</dimen>

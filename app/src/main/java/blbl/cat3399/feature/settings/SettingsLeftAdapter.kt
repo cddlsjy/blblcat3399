@@ -33,14 +33,19 @@ class SettingsLeftAdapter(
         return Vh(binding)
     }
 
-    override fun onBindViewHolder(holder: Vh, position: Int) = holder.bind(items[position], position == selected) {
-        val oldSelected = selected
-        if (position != oldSelected) {
-            selected = position
-            if (oldSelected in items.indices) notifyItemChanged(oldSelected)
-            notifyItemChanged(position)
+    override fun onBindViewHolder(holder: Vh, position: Int) {
+        holder.bind(items[position], position == selected) {
+            val clickedPosition = holder.bindingAdapterPosition
+            if (clickedPosition == RecyclerView.NO_POSITION) return@bind
+
+            val oldSelected = selected
+            if (clickedPosition != oldSelected) {
+                selected = clickedPosition
+                if (oldSelected in items.indices) notifyItemChanged(oldSelected)
+                if (clickedPosition in items.indices) notifyItemChanged(clickedPosition)
+            }
+            onClick(clickedPosition)
         }
-        onClick(position)
     }
 
     override fun getItemCount(): Int = items.size

@@ -304,16 +304,6 @@ internal fun PlayerActivity.onSidePanelBackPressed(): Boolean {
     return false
 }
 
-internal fun PlayerActivity.onCommentsBackPressed() {
-    if (isCommentThreadVisible()) {
-        showCommentsRoot()
-        focusCommentsPanel(targetRpid = commentThreadReturnFocusRpid)
-        commentThreadReturnFocusRpid = 0L
-    } else {
-        hideCommentsPanel()
-    }
-}
-
 internal fun PlayerActivity.showCommentsRoot() {
     binding.recyclerComments.visibility = View.VISIBLE
     binding.recyclerCommentThread.visibility = View.GONE

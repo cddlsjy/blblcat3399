@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
+
 package blbl.cat3399.feature.player
 
 import android.net.Uri
@@ -89,4 +91,3 @@ internal class CdnFailoverDataSource(
         upstream = null
     }
 }
-

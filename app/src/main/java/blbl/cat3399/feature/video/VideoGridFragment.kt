@@ -287,20 +287,20 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
                 val applied = result.appliedOrNull() ?: return@launch
                 applied.items.forEach { loadedBvids.add(it.bvid) }
                 val endDueToEmptyFetch = applied.items.isEmpty() && paging.snapshot().nextKey == startKey
-                    if (endDueToEmptyFetch) return@launch
-                    if (applied.items.isNotEmpty()) {
-                        if (applied.isRefresh) adapter.submit(applied.items) else adapter.append(applied.items)
+                if (endDueToEmptyFetch) return@launch
+                if (applied.items.isNotEmpty()) {
+                    if (applied.isRefresh) adapter.submit(applied.items) else adapter.append(applied.items)
+                }
+                _binding?.let { b ->
+                    b.recycler.postIfAlive(isAlive = { _binding === b && isResumed }) {
+                        maybeConsumePendingFocusFirstCard()
+                        dpadGridController?.consumePendingFocusAfterLoadMore()
                     }
-                    _binding?.let { b ->
-                        b.recycler.postIfAlive(isAlive = { _binding === b && isResumed }) {
-                            maybeConsumePendingFocusFirstCard()
-                            dpadGridController?.consumePendingFocusAfterLoadMore()
-                        }
-                    }
-                    AppLog.i(
-                        "VideoGrid",
-                        "load ok source=$source rid=$rid page=${startKey.page} add=${applied.items.size} total=${adapter.itemCount} cost=${SystemClock.uptimeMillis() - startAt}ms",
-                    )
+                }
+                AppLog.i(
+                    "VideoGrid",
+                    "load ok source=$source rid=$rid page=${startKey.page} add=${applied.items.size} total=${adapter.itemCount} cost=${SystemClock.uptimeMillis() - startAt}ms",
+                )
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
                 AppLog.e("VideoGrid", "load failed source=$source rid=$rid page=${startKey.page}", t)

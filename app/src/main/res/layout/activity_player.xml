@@ -63,7 +63,7 @@
             android:padding="@dimen/player_top_button_padding"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_back"
-            android:tint="@color/player_button_tint"
+            app:tint="@color/player_button_tint"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
@@ -115,7 +115,7 @@
                         android:layout_height="@dimen/video_card_stat_icon_size"
                         android:contentDescription="@string/app_name"
                         android:src="@drawable/ic_player_watching"
-                        android:tint="?android:attr/textColorSecondary" />
+                        app:tint="?android:attr/textColorSecondary" />
 
                     <TextView
                         android:id="@+id/tv_online"
@@ -143,7 +143,7 @@
                         android:layout_height="@dimen/video_card_stat_icon_size"
                         android:contentDescription="@string/app_name"
                         android:src="@drawable/ic_stat_play"
-                        android:tint="?android:attr/textColorSecondary" />
+                        app:tint="?android:attr/textColorSecondary" />
 
                     <TextView
                         android:id="@+id/tv_view_count"
@@ -193,7 +193,7 @@
             android:padding="@dimen/player_top_button_padding"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_settings"
-            android:tint="@color/player_button_tint"
+            app:tint="@color/player_button_tint"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="@id/btn_back"
             app:layout_constraintEnd_toStartOf="@id/tv_clock"
@@ -252,7 +252,7 @@
                 android:padding="?attr/playerOsdPadTransport"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_player_prev"
-                android:tint="@color/player_button_tint"
+                app:tint="@color/player_button_tint"
                 android:visibility="gone" />
 
             <ImageButton
@@ -266,7 +266,7 @@
             android:padding="?attr/playerOsdPadTransport"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_player_play"
-            android:tint="@color/player_button_tint" />
+            app:tint="@color/player_button_tint" />
 
             <ImageButton
                 android:id="@+id/btn_next"
@@ -279,7 +279,7 @@
             android:padding="?attr/playerOsdPadTransport"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_player_next"
-            android:tint="@color/player_button_tint" />
+            app:tint="@color/player_button_tint" />
 
             <ImageButton
                 android:id="@+id/btn_subtitle"
@@ -291,7 +291,7 @@
             android:padding="?attr/playerOsdPadNormal"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_player_subtitle"
-            android:tint="@color/player_button_tint"
+            app:tint="@color/player_button_tint"
             android:contentDescription="@string/player_btn_subtitle" />
 
             <ImageButton
@@ -318,7 +318,7 @@
                 android:padding="?attr/playerOsdPadNormal"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_comment"
-                android:tint="@color/player_button_tint" />
+                app:tint="@color/player_button_tint" />
 
             <ImageButton
                 android:id="@+id/btn_up"
@@ -328,10 +328,10 @@
                 android:background="?attr/blblFocusBgRound"
                 android:contentDescription="@string/app_name"
                 android:focusable="true"
-                android:padding="?attr/playerOsdPadNormal"
+            android:padding="?attr/playerOsdPadNormal"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_player_up"
-            android:tint="@color/player_button_tint" />
+            app:tint="@color/player_button_tint" />
 
             <ImageButton
                 android:id="@+id/btn_like"
@@ -344,7 +344,7 @@
             android:padding="?attr/playerOsdPadSmall"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_action_like"
-            android:tint="@color/player_button_tint"
+            app:tint="@color/player_button_tint"
             android:visibility="gone" />
 
             <ImageButton
@@ -358,7 +358,7 @@
             android:padding="?attr/playerOsdPadSmall"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_action_coin"
-            android:tint="@color/player_button_tint"
+            app:tint="@color/player_button_tint"
             android:visibility="gone" />
 
             <ImageButton
@@ -372,7 +372,7 @@
             android:padding="?attr/playerOsdPadSmall"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_action_fav"
-                android:tint="@color/player_button_tint"
+                app:tint="@color/player_button_tint"
                 android:visibility="gone" />
 
             <ImageButton
@@ -386,7 +386,7 @@
                 android:padding="?attr/playerOsdPadSmall"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_chevron_down"
-                android:tint="@color/player_button_tint" />
+                app:tint="@color/player_button_tint" />
 
             <ImageButton
                 android:id="@+id/btn_detail"
@@ -399,7 +399,7 @@
                 android:padding="?attr/playerOsdPadSmall"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_player_detail"
-                android:tint="@color/player_button_tint"
+                app:tint="@color/player_button_tint"
                 android:visibility="gone" />
 
             <ImageButton
@@ -412,7 +412,7 @@
             android:padding="?attr/playerOsdPadSmall"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_settings"
-            android:tint="@color/player_button_tint" />
+            app:tint="@color/player_button_tint" />
         </LinearLayout>
 
         <TextView

@@ -6,6 +6,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ProgressBar
+import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.SimpleItemAnimator
@@ -73,6 +74,16 @@ class BangumiDetailActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    finish()
+                }
+            },
+        )
+
         if (seasonIdArg == null && epIdArg == null) {
             AppToast.show(this, "缺少 seasonId/epId")
             finish()
@@ -92,11 +103,6 @@ class BangumiDetailActivity : BaseActivity() {
         super.onResume()
         Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
         if (this::headerAdapter.isInitialized) headerAdapter.invalidateSizing()
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        finish()
     }
 
     private fun showLoadingUi() {

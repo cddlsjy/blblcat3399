@@ -25,8 +25,6 @@
     <string name="my_qr_login">二维码登录</string>
     <string name="my_fav_default_title">默认收藏夹</string>
     <string name="my_fav_item_count_fmt">%1$d个内容</string>
-    <string name="my_fav_time_fmt">收藏于：%1$s</string>
-    <string name="my_history_time_fmt">观看于：%1$s</string>
     <string name="my_episode_section">正片剧集</string>
     <string name="my_episode_order_asc">正序</string>
     <string name="my_episode_order_desc">倒序</string>
@@ -36,8 +34,6 @@
     <string name="my_btn_followed">已追</string>
     <string name="search_clear">清空</string>
     <string name="search_backspace">后退</string>
-    <string name="search_t9">T9键盘</string>
-    <string name="search_full_keyboard">全键盘</string>
     <string name="search_action">搜索</string>
     <string name="search_clear_history">清空搜索记录</string>
     <string name="search_tab_video">视频</string>
@@ -60,8 +56,6 @@
     <string name="search_user_live_actions_title">%1$s 正在直播</string>
     <string name="search_user_action_enter_live">进入直播间</string>
     <string name="search_user_action_open_profile">查看主页</string>
-    <string name="search_media_ft">影视</string>
-    <string name="search_media_bangumi">番剧</string>
     <string name="search_unsupported">该分类暂未实现</string>
     <string name="label_following">关注</string>
     <string name="label_follower">粉丝</string>
@@ -85,8 +79,6 @@
     <string name="disclaimer_message">若要继续使用该应用需接受以下协议：\n\n本应用仅供学习交流使用，禁止用于其他用途。\n\n请在安装后的24小时内将本应用从设备中卸载，并且把APK安装文件删除。</string>
 
     <string name="player_btn_subtitle">字幕</string>
-    <string name="player_btn_playlist">播放列表</string>
-    <string name="player_btn_recommend">推荐视频</string>
     <string name="player_btn_list_panel">列表</string>
     <string name="player_list_tab_page">视频列表</string>
     <string name="player_list_tab_parts">合集/分P</string>
@@ -94,10 +86,6 @@
     <string name="player_list_empty">暂无内容</string>
     <string name="player_btn_comments">评论</string>
     <string name="player_btn_detail">视频详情页</string>
-    <string name="player_btn_back">返回</string>
-    <string name="player_panel_settings">设置</string>
-    <string name="player_panel_comments">评论</string>
-    <string name="player_panel_comment_thread">评论详情</string>
     <string name="player_comment_sort">排序</string>
     <string name="player_comment_sort_hot">热门</string>
     <string name="player_comment_sort_new">最新</string>
@@ -106,6 +94,5 @@
     <string name="player_comment_thread_empty">暂无更多回复</string>
     <string name="player_comment_load_failed">加载失败</string>
     <string name="player_comment_no_aid">未获取到 aid，暂不支持评论</string>
-    <string name="player_comment_thread_root">原评论</string>
     <string name="player_comment_expand">展开</string>
 </resources>

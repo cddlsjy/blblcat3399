@@ -31,7 +31,7 @@
             android:layout_marginEnd="@dimen/search_hot_icon_margin_end"
             android:contentDescription="@string/tab_search"
             android:src="@drawable/ic_hot_fire"
-            android:tint="?android:attr/textColorSecondary" />
+            app:tint="?android:attr/textColorSecondary" />
 
         <TextView
             android:id="@+id/tv_keyword"

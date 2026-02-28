@@ -15,7 +15,7 @@
         android:padding="@dimen/sidebar_settings_padding"
         android:scaleType="fitCenter"
         android:src="@drawable/ic_back"
-        android:tint="?attr/colorOnSurface"
+        app:tint="?attr/colorOnSurface"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 

@@ -3,8 +3,6 @@ package blbl.cat3399.core.ui
 import android.content.Context
 import android.content.res.Resources
 import android.util.TypedValue
-import android.view.View
-import android.view.ViewGroup.MarginLayoutParams
 import android.widget.TextView
 import androidx.annotation.DimenRes
 import kotlin.math.abs
@@ -50,36 +48,6 @@ fun Context.uiScaler(scale: Float = UiScale.factor(this)): UiScaler {
             scale
         }
     return UiScaler(resources, effectiveScale)
-}
-
-fun View.setPaddingIfChanged(leftPx: Int, topPx: Int, rightPx: Int, bottomPx: Int) {
-    if (paddingLeft == leftPx && paddingTop == topPx && paddingRight == rightPx && paddingBottom == bottomPx) return
-    setPadding(leftPx, topPx, rightPx, bottomPx)
-}
-
-fun View.setSizeIfChanged(widthPx: Int, heightPx: Int) {
-    val lp = layoutParams ?: return
-    if (lp.width == widthPx && lp.height == heightPx) return
-    lp.width = widthPx
-    lp.height = heightPx
-    layoutParams = lp
-}
-
-fun View.setMarginsIfChanged(leftPx: Int, topPx: Int, rightPx: Int, bottomPx: Int) {
-    val lp = layoutParams as? MarginLayoutParams ?: return
-    if (lp.leftMargin == leftPx && lp.topMargin == topPx && lp.rightMargin == rightPx && lp.bottomMargin == bottomPx) return
-    lp.setMargins(leftPx, topPx, rightPx, bottomPx)
-    layoutParams = lp
-}
-
-fun View.setMarginStartEndIfChanged(startPx: Int, topPx: Int, endPx: Int, bottomPx: Int) {
-    val lp = layoutParams as? MarginLayoutParams ?: return
-    if (lp.marginStart == startPx && lp.topMargin == topPx && lp.marginEnd == endPx && lp.bottomMargin == bottomPx) return
-    lp.marginStart = startPx
-    lp.topMargin = topPx
-    lp.marginEnd = endPx
-    lp.bottomMargin = bottomPx
-    layoutParams = lp
 }
 
 fun TextView.setTextSizePxIfChanged(sizePx: Float, epsilonPx: Float = 0.01f) {
