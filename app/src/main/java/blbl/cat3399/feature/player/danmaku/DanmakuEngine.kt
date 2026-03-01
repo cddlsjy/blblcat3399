@@ -77,6 +77,7 @@ internal class DanmakuEngine(
 ) : DanmakuEngineMainApi, DanmakuEngineActionApi {
     private val density: Float = displayMetrics.density.takeIf { it.isFinite() && it > 0f } ?: 1f
     // ---- Data ----
+    private val actionStateLock = Any()
     private var items: MutableList<DanmakuItem> = mutableListOf()
     private var index: Int = 0
     private val active: ArrayList<DanmakuItem> = ArrayList(64)
@@ -154,26 +155,30 @@ internal class DanmakuEngine(
     }
 
     override fun updateConfig(newConfig: DanmakuConfig) {
-        config = newConfig
-        val tsPx = sp(newConfig.textSizeSp).coerceAtLeast(1f)
-        val oldTs = textSizePx
-        textSizePx = tsPx
-        strokeWidthPx = 4f
-        outlinePadPx = max(1f, strokeWidthPx / 2f)
-        actionPaint.textSize = tsPx
+        synchronized(actionStateLock) {
+            config = newConfig
+            val tsPx = sp(newConfig.textSizeSp).coerceAtLeast(1f)
+            val oldTs = textSizePx
+            textSizePx = tsPx
+            strokeWidthPx = 4f
+            outlinePadPx = max(1f, strokeWidthPx / 2f)
+            actionPaint.textSize = tsPx
 
-        if (oldTs != tsPx) {
-            cacheStyleGeneration++
-            // Invalidate current caches to avoid mixing sizes.
-            val releaseAt = currentUiFrameId + 1
-            for (a in active) {
-                val bmp = a.cacheBitmap
-                if (bmp != null) {
-                    cacheManager.enqueueRelease(bmp, releaseAtFrameId = releaseAt)
-                    a.cacheBitmap = null
+            if (oldTs != tsPx) {
+                cacheStyleGeneration++
+                // Invalidate current caches to avoid mixing sizes.
+                val releaseAt = currentUiFrameId + 1
+                val size = active.size
+                for (i in 0 until size) {
+                    val a = active[i]
+                    val bmp = a.cacheBitmap
+                    if (bmp != null) {
+                        cacheManager.enqueueRelease(bmp, releaseAtFrameId = releaseAt)
+                        a.cacheBitmap = null
+                    }
+                    a.cacheState = DanmakuCacheState.Init
+                    a.cacheGeneration = -1
                 }
-                a.cacheState = DanmakuCacheState.Init
-                a.cacheGeneration = -1
             }
         }
     }
@@ -197,6 +202,7 @@ internal class DanmakuEngine(
     }
 
     override fun act() {
+        synchronized(actionStateLock) {
         val cfg = config
         if (!cfg.enabled) {
             clearActives()
@@ -453,6 +459,7 @@ internal class DanmakuEngine(
         }
 
         latestSnapshot = out
+        }
     }
 
     override fun renderSnapshot(): RenderSnapshot = latestSnapshot
@@ -516,17 +523,20 @@ internal class DanmakuEngine(
     }
 
     override fun setDanmakus(list: List<Danmaku>) {
-        clearActives()
-        items =
-            list
-                .sortedBy { it.timeMs }
-                .mapTo(ArrayList(list.size.coerceAtLeast(0))) { DanmakuItem(it) }
-        index = 0
-        lastNowMs = 0
-        publishEmptySnapshot()
+        synchronized(actionStateLock) {
+            clearActives()
+            items =
+                list
+                    .sortedBy { it.timeMs }
+                    .mapTo(ArrayList(list.size.coerceAtLeast(0))) { DanmakuItem(it) }
+            index = 0
+            lastNowMs = 0
+            publishEmptySnapshot()
+        }
     }
 
     override fun appendDanmakus(list: List<Danmaku>, alreadySorted: Boolean) {
+        synchronized(actionStateLock) {
         if (list.isEmpty()) return
         if (items.isEmpty()) {
             setDanmakus(list)
@@ -551,17 +561,21 @@ internal class DanmakuEngine(
         pending.clear()
         lastNowMs = 0
         publishEmptySnapshot()
+        }
     }
 
     override fun trimToMax(maxItems: Int) {
+        synchronized(actionStateLock) {
         if (maxItems <= 0) return
         val drop = items.size - maxItems
         if (drop <= 0) return
         items = items.subList(drop, items.size).toMutableList()
         index = (index - drop).coerceAtLeast(0)
+        }
     }
 
     override fun trimToTimeRange(minTimeMs: Long, maxTimeMs: Long) {
+        synchronized(actionStateLock) {
         if (items.isEmpty()) return
         val min = minTimeMs.coerceAtLeast(0L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         val max = maxTimeMs.coerceAtLeast(0L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
@@ -591,33 +605,41 @@ internal class DanmakuEngine(
             }
             pending.addAll(keep)
         }
+        }
     }
 
     override fun seekTo(positionMs: Long) {
+        synchronized(actionStateLock) {
         val pos = positionMs.coerceAtLeast(0L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         index = lowerBound(pos)
         clearActives()
         pending.clear()
         lastNowMs = pos
         publishEmptySnapshot()
+        }
     }
 
     override fun clear() {
+        synchronized(actionStateLock) {
         clearActives()
         pending.clear()
         publishEmptySnapshot()
+        }
     }
 
     override fun release() {
-        clear()
+        synchronized(actionStateLock) {
+            clear()
+        }
     }
 
     private fun clearActives() {
+        if (active.isEmpty()) return
         val releaseAt = currentUiFrameId + 1
-        for (a in active) {
+        for (i in active.size - 1 downTo 0) {
+            val a = active.removeAt(i)
             releaseItemCache(a, releaseAtFrameId = releaseAt)
         }
-        active.clear()
     }
 
     private fun publishEmptySnapshot() {
