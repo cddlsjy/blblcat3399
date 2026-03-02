@@ -1515,6 +1515,9 @@ class PlayerActivity : BaseActivity() {
             )
         }
         trace?.log("activity:onPause")
+        // Pause as early as possible when leaving foreground (e.g. Home key).
+        // Some TV boxes have vendor bugs with SurfaceView + codec when the surface is being torn down.
+        player?.pause()
         super.onPause()
         if (exitTraceStartAtMs > 0L) {
             exitTraceLog("lifecycle:onPause:afterSuper")
