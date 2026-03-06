@@ -397,7 +397,8 @@ object BiliApi {
 
     suspend fun liveRoomInfo(roomId: Long): LiveRoomInfo = LiveApi.liveRoomInfo(roomId = roomId)
 
-    suspend fun livePlayUrl(roomId: Long, qn: Int): LivePlayUrl = LiveApi.livePlayUrl(roomId = roomId, qn = qn)
+    suspend fun livePlayUrl(roomId: Long, qn: Int, highBitrateEnabled: Boolean): LivePlayUrl =
+        LiveApi.livePlayUrl(roomId = roomId, qn = qn, highBitrateEnabled = highBitrateEnabled)
 
     suspend fun liveDanmuInfo(roomId: Long): LiveDanmuInfo = LiveApi.liveDanmuInfo(roomId = roomId)
 

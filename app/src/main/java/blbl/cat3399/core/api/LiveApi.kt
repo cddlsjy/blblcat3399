@@ -209,6 +209,7 @@ internal object LiveApi {
     suspend fun livePlayUrl(
         roomId: Long,
         qn: Int,
+        highBitrateEnabled: Boolean,
     ): BiliApi.LivePlayUrl {
         val url =
             BiliClient.withQuery(
@@ -301,9 +302,9 @@ internal object LiveApi {
             }.distinct()
         val baseUrl = codec.optString("base_url", "").trim()
         val urlInfo = codec.optJSONArray("url_info") ?: JSONArray()
-        val enableHighBitrate = BiliClient.prefs.liveHighBitrateEnabled
+        val enableHighBitrate = highBitrateEnabled
         // Prefer the known-good origin host(s) first (higher bitrate), keep signed candidates as fallback.
-        // This is gated by prefs because some rooms/CDNs may reject the rewritten url.
+        // This is gated by caller/session because some rooms/CDNs may reject the rewritten url.
         val originUrls = ArrayList<String>(LIVE_ORIGIN_HOST_OVERRIDES.size + 1)
         val signedUrls = ArrayList<String>(urlInfo.length() + 2)
         val seen = HashSet<String>(urlInfo.length() * 2 + LIVE_ORIGIN_HOST_OVERRIDES.size * 2)

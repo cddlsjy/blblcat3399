@@ -67,6 +67,7 @@ import blbl.cat3399.feature.player.engine.LiveHlsDebugInfo
 import blbl.cat3399.feature.player.engine.PlayerEngineKind
 import blbl.cat3399.feature.player.engine.PlaybackSource
 import kotlinx.coroutines.CancellationException
+import org.json.JSONObject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -74,6 +75,15 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+private object LivePlayerSettingKeys {
+    const val QUALITY = "quality"
+    const val LINE = "line"
+    const val HIGH_BITRATE = "high_bitrate"
+    const val AUDIO_BALANCE = "audio_balance"
+    const val PLAYER_ENGINE = "player_engine"
+    const val DEBUG_INFO = "debug_info"
+}
 
 class LivePlayerActivity : BaseActivity() {
     override fun shouldRecreateOnUiScaleChange(): Boolean = false
@@ -149,6 +159,26 @@ class LivePlayerActivity : BaseActivity() {
             AppToast.show(this, "缺少 room_id")
             finish()
             return
+        }
+
+        val sessionOverrideJson =
+            intent.getStringExtra(EXTRA_ENGINE_SWITCH_SESSION_JSON)
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+        session =
+            LiveSession(
+                highBitrateEnabled = prefs.liveHighBitrateEnabled,
+                danmaku = DanmakuSessionSettings(
+                    enabled = prefs.danmakuEnabled,
+                    opacity = prefs.danmakuOpacity,
+                    textSizeSp = prefs.danmakuTextSizeSp,
+                    speedLevel = prefs.danmakuSpeed,
+                    area = prefs.danmakuArea,
+                ),
+                debugEnabled = prefs.playerDebugEnabled,
+            )
+        if (sessionOverrideJson != null) {
+            session = session.restoreFromEngineSwitchJsonString(sessionOverrideJson)
         }
 
         // Live: no seek bar.
@@ -729,16 +759,18 @@ class LivePlayerActivity : BaseActivity() {
     private fun setupSettingsPanel() {
         val settingsAdapter =
             PlayerSettingsAdapter { item ->
-                when (item.title) {
-                    "清晰度" -> showQualityDialog()
-                    "线路选择" -> showLineDialog()
-                    "音频平衡" -> showAudioBalanceDialog()
-                    "播放器内核" -> showPlayerEngineDialog()
-                    "调试信息" -> {
+                when (item.key) {
+                    LivePlayerSettingKeys.QUALITY -> showQualityDialog()
+                    LivePlayerSettingKeys.LINE -> showLineDialog()
+                    LivePlayerSettingKeys.HIGH_BITRATE -> toggleLiveHighBitrate()
+                    LivePlayerSettingKeys.AUDIO_BALANCE -> showAudioBalanceDialog()
+                    LivePlayerSettingKeys.PLAYER_ENGINE -> showPlayerEngineDialog()
+                    LivePlayerSettingKeys.DEBUG_INFO -> {
                         session = session.copy(debugEnabled = !session.debugEnabled)
                         updateDebugOverlay()
                         refreshSettings()
                     }
+
                     else -> AppToast.show(this, "暂未实现：${item.title}")
                 }
             }
@@ -808,6 +840,7 @@ class LivePlayerActivity : BaseActivity() {
     }
 
     private fun refreshSettings() {
+        val prefs = BiliClient.prefs
         val p = lastPlay
         val qn = session.targetQn.takeIf { it > 0 } ?: p?.currentQn ?: LIVE_QN_ORIGINAL
         val qLabel = liveQnLabel(qn, p)
@@ -817,20 +850,46 @@ class LivePlayerActivity : BaseActivity() {
                 ?.let { "线路 ${it.order}" }
                 ?: "自动"
         val engineLabel =
-            when (player?.kind ?: PlayerEngineKind.fromPrefValue(BiliClient.prefs.playerEngineKind)) {
+            when (player?.kind ?: PlayerEngineKind.fromPrefValue(prefs.playerEngineKind)) {
                 PlayerEngineKind.IjkPlayer -> "IjkPlayer"
                 PlayerEngineKind.ExoPlayer -> "ExoPlayer"
             }
-        val balanceLabel = AudioBalanceLevel.fromPrefValue(BiliClient.prefs.playerAudioBalanceLevel).label
+        val balanceLabel = AudioBalanceLevel.fromPrefValue(prefs.playerAudioBalanceLevel).label
         val list =
             listOf(
-                PlayerSettingsAdapter.SettingItem("清晰度", qLabel),
-                PlayerSettingsAdapter.SettingItem("线路选择", lineLabel),
-                PlayerSettingsAdapter.SettingItem("音频平衡", balanceLabel),
-                PlayerSettingsAdapter.SettingItem("播放器内核", engineLabel),
-                PlayerSettingsAdapter.SettingItem("调试信息", if (session.debugEnabled) "开" else "关"),
+                PlayerSettingsAdapter.SettingItem(key = LivePlayerSettingKeys.QUALITY, title = "清晰度", subtitle = qLabel),
+                PlayerSettingsAdapter.SettingItem(key = LivePlayerSettingKeys.LINE, title = "线路选择", subtitle = lineLabel),
+                PlayerSettingsAdapter.SettingItem(
+                    key = LivePlayerSettingKeys.HIGH_BITRATE,
+                    title = "提高直播码率",
+                    subtitle = if (session.highBitrateEnabled) "开" else "关",
+                ),
+                PlayerSettingsAdapter.SettingItem(key = LivePlayerSettingKeys.AUDIO_BALANCE, title = "音频平衡", subtitle = balanceLabel),
+                PlayerSettingsAdapter.SettingItem(key = LivePlayerSettingKeys.PLAYER_ENGINE, title = "播放器内核", subtitle = engineLabel),
+                PlayerSettingsAdapter.SettingItem(key = LivePlayerSettingKeys.DEBUG_INFO, title = "调试信息", subtitle = if (session.debugEnabled) "开" else "关"),
             )
         (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.submit(list)
+    }
+
+    private fun toggleLiveHighBitrate() {
+        val enabled = !session.highBitrateEnabled
+        session = session.copy(highBitrateEnabled = enabled, lineOrder = 1, originFailCount = 0)
+        resetPlaybackRecoveryState()
+        refreshSettings()
+        AppToast.show(this, "提高直播码率：${if (enabled) "开" else "关"}")
+        lifecycleScope.launch { loadAndPlay(initial = false) }
+    }
+
+    private fun resetPlaybackRecoveryState() {
+        autoFailoverJob?.cancel()
+        autoFailoverJob = null
+        autoFailoverWindowStartAtMs = 0L
+        autoFailoverSwitchCount = 0
+        autoFailoverLastSwitchAtMs = 0L
+        autoFailoverInFlight = false
+        behindLiveWindowWindowStartAtMs = 0L
+        behindLiveWindowRecoverCount = 0
+        behindLiveWindowLastRecoverAtMs = 0L
     }
 
     private fun showPlayerEngineDialog() {
@@ -847,11 +906,13 @@ class LivePlayerActivity : BaseActivity() {
             if (picked == currentKind) return@singleChoice
             fun doSwitch() {
                 BiliClient.prefs.playerEngineKind = picked.prefValue
+                val sessionJson = session.toEngineSwitchJsonString()
                 val restart =
                     Intent(this, LivePlayerActivity::class.java).apply {
                         putExtra(EXTRA_ROOM_ID, roomId)
                         putExtra(EXTRA_TITLE, roomTitle)
                         putExtra(EXTRA_UNAME, roomUname)
+                        putExtra(EXTRA_ENGINE_SWITCH_SESSION_JSON, sessionJson)
                     }
                 startActivity(restart)
                 finish()
@@ -1178,7 +1239,7 @@ class LivePlayerActivity : BaseActivity() {
                 }
 
             val qn = session.targetQn.takeIf { it > 0 } ?: 150
-            val play = BiliApi.livePlayUrl(realRoomId, qn)
+            val play = BiliApi.livePlayUrl(realRoomId, qn, highBitrateEnabled = session.highBitrateEnabled)
             lastPlay = play
             if (play.lines.isNotEmpty()) {
                 // If saved lineOrder becomes out of range (API may return fewer lines), fall back to line 1.
@@ -1323,6 +1384,7 @@ class LivePlayerActivity : BaseActivity() {
         ) { which, _ ->
             val picked = optionsAvailable.getOrNull(which) ?: return@singleChoice
             session = session.copy(targetQn = picked, lineOrder = 1, originFailCount = 0)
+            resetPlaybackRecoveryState()
             refreshSettings()
             lifecycleScope.launch { loadAndPlay(initial = false) }
         }
@@ -1354,6 +1416,7 @@ class LivePlayerActivity : BaseActivity() {
                     // User explicitly chooses an origin line: allow retrying origin mode.
                     session.copy(lineOrder = picked.order, originFailCount = 0)
                 }
+            resetPlaybackRecoveryState()
             refreshSettings()
             lifecycleScope.launch { loadAndPlay(initial = false) }
         }
@@ -1694,10 +1757,68 @@ class LivePlayerActivity : BaseActivity() {
         }
     }
 
+    private fun LiveSession.toEngineSwitchJsonString(): String {
+        return JSONObject().apply {
+            put("v", 1)
+            put("targetQn", targetQn)
+            put("lineOrder", lineOrder)
+            put("originFailCount", originFailCount)
+            put("highBitrateEnabled", highBitrateEnabled)
+            put("danmakuEnabled", danmaku.enabled)
+            put("danmakuOpacity", danmaku.opacity.toDouble())
+            put("danmakuTextSizeSp", danmaku.textSizeSp.toDouble())
+            put("danmakuSpeedLevel", danmaku.speedLevel)
+            put("danmakuArea", danmaku.area.toDouble())
+            put("debugEnabled", debugEnabled)
+        }.toString()
+    }
+
+    private fun LiveSession.restoreFromEngineSwitchJsonString(raw: String): LiveSession {
+        val obj = runCatching { JSONObject(raw) }.getOrNull() ?: return this
+
+        fun optFloat(key: String, fallback: Float): Float {
+            val value = obj.optDouble(key, fallback.toDouble()).toFloat()
+            if (!value.isFinite()) return fallback
+            return value
+        }
+
+        fun optInt(key: String, fallback: Int): Int {
+            return obj.optInt(key, fallback)
+        }
+
+        val restoredTargetQn = optInt("targetQn", targetQn).takeIf { it > 0 } ?: targetQn
+        val restoredLineOrder = optInt("lineOrder", lineOrder).takeIf { it > 0 } ?: lineOrder
+        val restoredOriginFailCount = optInt("originFailCount", originFailCount).coerceAtLeast(0)
+        val restoredHighBitrateEnabled = obj.optBoolean("highBitrateEnabled", highBitrateEnabled)
+        val restoredDanmakuEnabled = obj.optBoolean("danmakuEnabled", danmaku.enabled)
+        val restoredDanmakuOpacity = optFloat("danmakuOpacity", danmaku.opacity).coerceIn(0.05f, 1.0f)
+        val restoredDanmakuTextSizeSp = optFloat("danmakuTextSizeSp", danmaku.textSizeSp).coerceIn(10f, 60f)
+        val restoredDanmakuSpeedLevel = optInt("danmakuSpeedLevel", danmaku.speedLevel).coerceIn(1, 10)
+        val restoredDanmakuArea = optFloat("danmakuArea", danmaku.area).coerceIn(0.05f, 1.0f)
+        val restoredDebugEnabled = obj.optBoolean("debugEnabled", debugEnabled)
+
+        return copy(
+            targetQn = restoredTargetQn,
+            lineOrder = restoredLineOrder,
+            originFailCount = restoredOriginFailCount,
+            highBitrateEnabled = restoredHighBitrateEnabled,
+            danmaku =
+                danmaku.copy(
+                    enabled = restoredDanmakuEnabled,
+                    opacity = restoredDanmakuOpacity,
+                    textSizeSp = restoredDanmakuTextSizeSp,
+                    speedLevel = restoredDanmakuSpeedLevel,
+                    area = restoredDanmakuArea,
+                ),
+            debugEnabled = restoredDebugEnabled,
+        )
+    }
+
     private data class LiveSession(
         val targetQn: Int = LIVE_QN_ORIGINAL,
         val lineOrder: Int = 1,
         val originFailCount: Int = 0,
+        val highBitrateEnabled: Boolean = BiliClient.prefs.liveHighBitrateEnabled,
         val danmaku: DanmakuSessionSettings =
             DanmakuSessionSettings(
                 enabled = BiliClient.prefs.danmakuEnabled,
@@ -1714,6 +1835,7 @@ class LivePlayerActivity : BaseActivity() {
         const val EXTRA_TITLE = "title"
         const val EXTRA_UNAME = "uname"
 
+        private const val EXTRA_ENGINE_SWITCH_SESSION_JSON = "engine_switch_session_json"
         private const val LIVE_QN_ORIGINAL = 10_000
         private const val AUTO_HIDE_MS = 4_000L
         private const val BACK_DOUBLE_PRESS_WINDOW_MS = 2_500L
