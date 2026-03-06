@@ -5,6 +5,30 @@ import org.junit.Test
 
 class PlayerTextFormatsTest {
     @Test
+    fun pickAudioIdByPreference_should_keep_exact_match_when_available() {
+        val picked = pickAudioIdByPreference(availableAudioIds = listOf(30250, 30280, 30232), desiredAudioId = 30250)
+        assertEquals(30250, picked)
+    }
+
+    @Test
+    fun pickAudioIdByPreference_should_fallback_hires_to_192k_before_dolby() {
+        val picked = pickAudioIdByPreference(availableAudioIds = listOf(30250, 30280, 30232), desiredAudioId = 30251)
+        assertEquals(30280, picked)
+    }
+
+    @Test
+    fun pickAudioIdByPreference_should_fallback_normal_to_best_not_above_desired() {
+        val picked = pickAudioIdByPreference(availableAudioIds = listOf(30280, 30216), desiredAudioId = 30232)
+        assertEquals(30216, picked)
+    }
+
+    @Test
+    fun pickAudioIdByPreference_should_pick_lowest_normal_above_desired_when_needed() {
+        val picked = pickAudioIdByPreference(availableAudioIds = listOf(30280), desiredAudioId = 30232)
+        assertEquals(30280, picked)
+    }
+
+    @Test
     fun pickQnByQualityOrder_should_pick_exact_match_when_available() {
         val picked = pickQnByQualityOrder(availableQns = listOf(64, 80, 112, 120), desiredQn = 112)
         assertEquals(112, picked)

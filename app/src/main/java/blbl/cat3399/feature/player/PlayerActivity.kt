@@ -2456,17 +2456,22 @@ class PlayerActivity : BaseActivity() {
                 }
 
                 val desiredAudioId = session.targetAudioId.takeIf { it > 0 } ?: session.preferAudioId
+                val pickedAudioId = pickAudioIdByPreference(allAudioCandidates.map { it.id }, desiredAudioId)
+                if (pickedAudioId > 0 && pickedAudioId != desiredAudioId) {
+                    AppLog.w("Player", "wanted audioId=$desiredAudioId but fallback to audioId=$pickedAudioId")
+                }
                 val audioPool =
-                    when (desiredAudioId) {
-                        30250 -> allAudioCandidates.filter { it.kind == DashAudioKind.DOLBY }.ifEmpty { allAudioCandidates }
-                        30251 -> allAudioCandidates.filter { it.kind == DashAudioKind.FLAC }.ifEmpty { allAudioCandidates }
-                        else -> allAudioCandidates.filter { it.kind == DashAudioKind.NORMAL }.ifEmpty { allAudioCandidates }
+                    if (pickedAudioId > 0) {
+                        allAudioCandidates.filter { it.id == pickedAudioId }
+                    } else {
+                        allAudioCandidates
                     }
 
                 val audioPicked =
-                    audioPool.maxWithOrNull(
-                        compareBy<AudioCandidate> { it.bandwidth }.thenBy { if (it.id == desiredAudioId) 1 else 0 },
-                    )
+                    audioPool.maxByOrNull { it.bandwidth }
+                        ?: allAudioCandidates.maxWithOrNull(
+                            compareBy<AudioCandidate> { it.bandwidth }.thenBy { if (it.id == desiredAudioId) 1 else 0 },
+                        )
                 if (audioPicked == null) {
                     AppLog.w("Player", "no DASH audio track picked; fallback to durl if possible (or video-only if durl missing)")
                 } else {

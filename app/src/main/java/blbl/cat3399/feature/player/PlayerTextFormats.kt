@@ -13,6 +13,49 @@ internal fun audioLabel(id: Int): String =
         else -> id.toString()
     }
 
+private val normalAudioOrder = intArrayOf(30216, 30232, 30280)
+
+private fun normalAudioRank(id: Int): Int {
+    val idx = normalAudioOrder.indexOf(id)
+    return if (idx >= 0) idx else Int.MAX_VALUE
+}
+
+private fun firstAvailableAudioId(availableAudioIds: Collection<Int>, preferredOrder: IntArray): Int {
+    for (id in preferredOrder) {
+        if (availableAudioIds.contains(id)) return id
+    }
+    return 0
+}
+
+internal fun pickAudioIdByPreference(availableAudioIds: List<Int>, desiredAudioId: Int): Int {
+    val available = availableAudioIds.filter { it > 0 }.distinct()
+    if (available.isEmpty()) return 0
+    if (desiredAudioId > 0 && available.contains(desiredAudioId)) return desiredAudioId
+
+    if (desiredAudioId == 30251) {
+        return firstAvailableAudioId(available, intArrayOf(30280, 30232, 30216, 30250)).takeIf { it > 0 } ?: available.first()
+    }
+    if (desiredAudioId == 30250) {
+        return firstAvailableAudioId(available, intArrayOf(30280, 30232, 30216, 30251)).takeIf { it > 0 } ?: available.first()
+    }
+
+    val normalAudios = available.filter { normalAudioRank(it) != Int.MAX_VALUE }
+    if (desiredAudioId in normalAudioOrder) {
+        if (normalAudios.isNotEmpty()) {
+            val desiredRank = normalAudioRank(desiredAudioId)
+            val notAboveDesired = normalAudios.filter { normalAudioRank(it) <= desiredRank }
+            return if (notAboveDesired.isNotEmpty()) {
+                notAboveDesired.maxBy { normalAudioRank(it) }
+            } else {
+                normalAudios.minBy { normalAudioRank(it) }
+            }
+        }
+        return firstAvailableAudioId(available, intArrayOf(30251, 30250)).takeIf { it > 0 } ?: available.first()
+    }
+
+    return firstAvailableAudioId(available, intArrayOf(30280, 30232, 30216, 30251, 30250)).takeIf { it > 0 } ?: available.first()
+}
+
 internal fun qnLabel(qn: Int): String =
     when (qn) {
         16 -> "360P 流畅"
