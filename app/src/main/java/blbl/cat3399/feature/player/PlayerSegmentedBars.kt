@@ -13,12 +13,21 @@ import blbl.cat3399.R
 import kotlin.math.max
 
 class SegmentedSeekBar : AppCompatSeekBar {
-    private val segmentPaint =
+    private val skipSegmentPaint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             color = ContextCompat.getColor(context, R.color.blbl_blue)
             alpha = 170
         }
+
+    private val poiSegmentPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = ContextCompat.getColor(context, R.color.blbl_red)
+            alpha = 220
+        }
+
+    private val poiMarkerHalfWidthPx = (context.resources.displayMetrics.density * 1.5f).coerceAtLeast(1f)
 
     private var segments: List<SegmentMark> = emptyList()
 
@@ -66,8 +75,6 @@ class SegmentedSeekBar : AppCompatSeekBar {
         val b = d.bounds
         val hasValidBounds = b.width() > 1 && b.height() > 1
 
-        // Keep the same horizontal range as the framework computed (padding, RTL, thumb offset, etc).
-        // Only adjust vertical bounds to control track thickness; changing left/right here can cause visual drift.
         val left =
             if (hasValidBounds) b.left
             else max(paddingLeft, thumbOffset).coerceAtLeast(0)
@@ -101,9 +108,6 @@ class SegmentedSeekBar : AppCompatSeekBar {
         val top = bounds.top.toFloat()
         val bottom = bounds.bottom.toFloat()
 
-        // Prefer a geometry derived from view paddings + thumbOffset rather than Drawable bounds.
-        // When progressDrawable is replaced at runtime, its bounds can temporarily be out-of-sync with the SeekBar's
-        // thumb/progress mapping, which makes segment markers look "early/late" compared to the preview time.
         val leftInset = max(paddingLeft, thumbOffset).toFloat()
         val rightInset = max(paddingRight, thumbOffset).toFloat()
         val leftBase = leftInset
@@ -111,7 +115,38 @@ class SegmentedSeekBar : AppCompatSeekBar {
         val range = rightBase - leftBase
         if (range <= 1f) return
 
+        drawSegments(canvas = canvas, top = top, bottom = bottom, leftBase = leftBase, rightBase = rightBase, range = range, poiOnly = false)
+        drawSegments(canvas = canvas, top = top, bottom = bottom, leftBase = leftBase, rightBase = rightBase, range = range, poiOnly = true)
+    }
+
+    private fun drawSegments(
+        canvas: Canvas,
+        top: Float,
+        bottom: Float,
+        leftBase: Float,
+        rightBase: Float,
+        range: Float,
+        poiOnly: Boolean,
+    ) {
         for (seg in segments) {
+            val isPoi = seg.style == SegmentMarkStyle.POI
+            if (isPoi != poiOnly) continue
+
+            if (isPoi) {
+                val centerFraction = seg.startFraction.coerceIn(0f, 1f)
+                val center =
+                    if (layoutDirection == View.LAYOUT_DIRECTION_RTL) {
+                        rightBase - range * centerFraction
+                    } else {
+                        leftBase + range * centerFraction
+                    }
+                val l = (center - poiMarkerHalfWidthPx).coerceIn(leftBase, rightBase)
+                val r = (center + poiMarkerHalfWidthPx).coerceIn(l + 1f, rightBase)
+                tmpRect.set(l, top, r, bottom)
+                canvas.drawRect(tmpRect, poiSegmentPaint)
+                continue
+            }
+
             val start = seg.startFraction.coerceIn(0f, 1f)
             val end = seg.endFraction.coerceIn(0f, 1f)
             if (end <= start) continue
@@ -122,18 +157,27 @@ class SegmentedSeekBar : AppCompatSeekBar {
                     (leftBase + range * start) to (leftBase + range * end)
                 }
             tmpRect.set(l, top, r, bottom)
-            canvas.drawRect(tmpRect, segmentPaint)
+            canvas.drawRect(tmpRect, skipSegmentPaint)
         }
     }
 }
 
 class SegmentedProgressBar : ProgressBar {
-    private val segmentPaint =
+    private val skipSegmentPaint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             color = ContextCompat.getColor(context, R.color.blbl_blue)
             alpha = 170
         }
+
+    private val poiSegmentPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = ContextCompat.getColor(context, R.color.blbl_red)
+            alpha = 220
+        }
+
+    private val poiMarkerHalfWidthPx = (context.resources.displayMetrics.density * 1.5f).coerceAtLeast(1f)
 
     private var segments: List<SegmentMark> = emptyList()
 
@@ -167,14 +211,49 @@ class SegmentedProgressBar : ProgressBar {
         val range = rightBase - leftBase
         if (range <= 1f) return
 
+        drawSegments(canvas = canvas, top = top, bottom = bottom, leftBase = leftBase, rightBase = rightBase, range = range, poiOnly = false)
+        drawSegments(canvas = canvas, top = top, bottom = bottom, leftBase = leftBase, rightBase = rightBase, range = range, poiOnly = true)
+    }
+
+    private fun drawSegments(
+        canvas: Canvas,
+        top: Float,
+        bottom: Float,
+        leftBase: Float,
+        rightBase: Float,
+        range: Float,
+        poiOnly: Boolean,
+    ) {
         for (seg in segments) {
+            val isPoi = seg.style == SegmentMarkStyle.POI
+            if (isPoi != poiOnly) continue
+
+            if (isPoi) {
+                val centerFraction = seg.startFraction.coerceIn(0f, 1f)
+                val center =
+                    if (layoutDirection == View.LAYOUT_DIRECTION_RTL) {
+                        rightBase - range * centerFraction
+                    } else {
+                        leftBase + range * centerFraction
+                    }
+                val l = (center - poiMarkerHalfWidthPx).coerceIn(leftBase, rightBase)
+                val r = (center + poiMarkerHalfWidthPx).coerceIn(l + 1f, rightBase)
+                tmpRect.set(l, top, r, bottom)
+                canvas.drawRect(tmpRect, poiSegmentPaint)
+                continue
+            }
+
             val start = seg.startFraction.coerceIn(0f, 1f)
             val end = seg.endFraction.coerceIn(0f, 1f)
             if (end <= start) continue
-            val l = leftBase + range * start
-            val r = leftBase + range * end
+            val (l, r) =
+                if (layoutDirection == View.LAYOUT_DIRECTION_RTL) {
+                    (rightBase - range * end) to (rightBase - range * start)
+                } else {
+                    (leftBase + range * start) to (leftBase + range * end)
+                }
             tmpRect.set(l, top, r, bottom)
-            canvas.drawRect(tmpRect, segmentPaint)
+            canvas.drawRect(tmpRect, skipSegmentPaint)
         }
     }
 }

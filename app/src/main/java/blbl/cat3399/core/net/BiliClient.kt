@@ -35,6 +35,15 @@ object BiliClient {
     lateinit var cdnOkHttp: OkHttpClient
         private set
 
+    data class StringResponse(
+        val code: Int,
+        val message: String,
+        val body: String,
+    ) {
+        val isSuccessful: Boolean
+            get() = code in 200..299
+    }
+
     @Volatile
     private var wbiKeys: WbiSigner.Keys? = null
 
@@ -113,6 +122,18 @@ object BiliClient {
         body: RequestBody? = null,
         noCookies: Boolean = false,
     ): String {
+        val res = requestStringResponse(url = url, method = method, headers = headers, body = body, noCookies = noCookies)
+        if (!res.isSuccessful) throw IOException("HTTP ${res.code} ${res.message} body=${res.body.take(200)}")
+        return res.body
+    }
+
+    suspend fun requestStringResponse(
+        url: String,
+        method: String = "GET",
+        headers: Map<String, String> = emptyMap(),
+        body: RequestBody? = null,
+        noCookies: Boolean = false,
+    ): StringResponse {
         val reqBuilder = Request.Builder().url(url)
         for ((k, v) in headers) reqBuilder.header(k, v)
         when (method.uppercase()) {
@@ -123,8 +144,7 @@ object BiliClient {
         val res = clientFor(url, noCookies = noCookies).newCall(reqBuilder.build()).await()
         res.use { r ->
             val raw = withContext(Dispatchers.IO) { r.body?.string() ?: "" }
-            if (!r.isSuccessful) throw IOException("HTTP ${r.code} ${r.message} body=${raw.take(200)}")
-            return raw
+            return StringResponse(code = r.code, message = r.message, body = raw)
         }
     }
 

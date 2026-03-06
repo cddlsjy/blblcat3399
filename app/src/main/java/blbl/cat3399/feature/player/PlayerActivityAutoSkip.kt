@@ -6,6 +6,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.Player
 import blbl.cat3399.core.api.BiliApi
 import blbl.cat3399.core.api.SponsorBlockApi
+import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.feature.player.engine.BlblPlayerEngine
 import java.util.LinkedHashMap
@@ -15,6 +16,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+
+private const val AUTO_SKIP_LOG_TAG = "PlayerAutoSkip"
 
 internal fun PlayerActivity.autoSkipCategoryLabel(category: String?): String {
     val c = category?.trim().orEmpty()
@@ -157,18 +160,7 @@ internal fun PlayerActivity.maybeUpdateAutoSkipSegmentMarkers(durationMs: Long) 
     autoSkipMarkersDurationMs = durationMs
     autoSkipMarkersDirty = false
 
-    val durF = durationMs.toFloat()
-    if (durF <= 0f) return
-    val marks =
-        autoSkipSegments.mapNotNull { seg ->
-            val start = seg.startMs.coerceAtLeast(0L)
-            val end = seg.endMs.coerceAtLeast(0L)
-            if (end <= start) return@mapNotNull null
-            val s = (start.toFloat() / durF).coerceIn(0f, 1f)
-            val e = (end.toFloat() / durF).coerceIn(0f, 1f)
-            if (e <= s) return@mapNotNull null
-            SegmentMark(startFraction = s, endFraction = e)
-        }
+    val marks = buildAutoSkipSegmentMarks(autoSkipSegments, durationMs)
     binding.seekProgress.setSegments(marks)
     binding.progressPersistentBottom.setSegments(marks)
     binding.progressSeekOsd.setSegments(marks)
@@ -217,16 +209,7 @@ internal fun PlayerActivity.maybeTickAutoSkipSegments(posMs: Long) {
 
     if (autoSkipSegments.isEmpty()) return
     val windowEndMs = posMs + PlayerActivity.AUTO_SKIP_START_WINDOW_MS
-    val candidate =
-        autoSkipSegments.firstOrNull { seg ->
-            if (autoSkipHandledSegmentIds.contains(seg.id)) return@firstOrNull false
-            when {
-                posMs >= seg.startMs && posMs < seg.endMs -> true
-                seg.startMs in posMs..windowEndMs -> true
-                seg.startMs > windowEndMs -> false
-                else -> false
-            }
-        } ?: return
+    val candidate = findAutoSkipCandidate(autoSkipSegments, autoSkipHandledSegmentIds, posMs, windowEndMs) ?: return
 
     autoSkipPending = PendingAutoSkip(token = autoSkipToken, segment = candidate, dueAtElapsedMs = now + PlayerActivity.AUTO_SKIP_DELAY_MS)
     trace?.log("skipseg:pending", "id=${candidate.id} cat=${candidate.category ?: ""} src=${candidate.source}")
@@ -251,29 +234,20 @@ internal fun PlayerActivity.maybeStartAutoSkipSegments(
 
     autoSkipFetchJob =
         lifecycleScope.launch {
-            val sbSegments =
+            val sbResult =
                 withContext(Dispatchers.IO) {
-                    runCatching { SponsorBlockApi.skipSegments(bvid = bvid, cid = cid) }.getOrNull().orEmpty()
+                    SponsorBlockApi.skipSegments(bvid = bvid, cid = cid)
                 }
             if (!isActive) return@launch
             if (playbackToken != autoSkipToken) return@launch
 
-            val merged = LinkedHashMap<String, SkipSegment>(clipSegments.size + sbSegments.size)
-            for (seg in clipSegments) merged[seg.id] = seg
-            for (sb in sbSegments) {
-                val id =
-                    sb.uuid?.takeIf { it.isNotBlank() }?.let { "sb:$it" }
-                        ?: "sb:${sb.category.orEmpty()}:${sb.startMs}-${sb.endMs}"
-                merged[id] =
-                    SkipSegment(
-                        id = id,
-                        startMs = sb.startMs,
-                        endMs = sb.endMs,
-                        category = sb.category,
-                        source = "sponsorblock",
-                    )
+            val detail = sbResult.detail?.takeIf { it.isNotBlank() } ?: "-"
+            trace?.log("skipseg:fetch", "state=${sbResult.state.name.lowercase()} count=${sbResult.segments.size} detail=$detail")
+            if (sbResult.state == SponsorBlockApi.FetchState.ERROR) {
+                AppLog.w(AUTO_SKIP_LOG_TAG, "skipSegments failed bvid=$bvid cid=$cid detail=$detail")
             }
-            setAutoSkipSegments(playbackToken, merged.values.toList())
+
+            setAutoSkipSegments(playbackToken, mergeAutoSkipSegments(clipSegments, sbResult.segments))
         }
 }
 
@@ -297,9 +271,76 @@ internal fun PlayerActivity.extractClipInfoSegmentsFromPlayJson(playJson: JSONOb
         val endMs = normalizeClipTimeToMs(endRaw).coerceAtLeast(0L)
         if (endMs <= startMs) continue
         val id = "pgc:$category:$startMs-$endMs"
-        out.add(SkipSegment(id = id, startMs = startMs, endMs = endMs, category = category, source = "pgc_clip"))
+        out.add(
+            SkipSegment(
+                id = id,
+                startMs = startMs,
+                endMs = endMs,
+                category = category,
+                source = "pgc_clip",
+                actionType = "skip",
+            ),
+        )
     }
     return out
+}
+
+internal fun buildAutoSkipSegmentMarks(segments: List<SkipSegment>, durationMs: Long): List<SegmentMark> {
+    val durF = durationMs.toFloat()
+    if (durF <= 0f) return emptyList()
+    return segments.mapNotNull { seg ->
+        val start = seg.startMs.coerceAtLeast(0L)
+        val end = seg.endMs.coerceAtLeast(0L)
+        val s = (start.toFloat() / durF).coerceIn(0f, 1f)
+        if (seg.isPoi()) {
+            SegmentMark(startFraction = s, endFraction = s, style = SegmentMarkStyle.POI)
+        } else {
+            if (end <= start) return@mapNotNull null
+            val e = (end.toFloat() / durF).coerceIn(0f, 1f)
+            if (e <= s) return@mapNotNull null
+            SegmentMark(startFraction = s, endFraction = e, style = SegmentMarkStyle.SKIP)
+        }
+    }
+}
+
+internal fun findAutoSkipCandidate(
+    segments: List<SkipSegment>,
+    handledSegmentIds: Set<String>,
+    posMs: Long,
+    windowEndMs: Long,
+): SkipSegment? =
+    segments.firstOrNull { seg ->
+        if (handledSegmentIds.contains(seg.id)) return@firstOrNull false
+        if (!seg.isAutoSkippable()) return@firstOrNull false
+        when {
+            posMs >= seg.startMs && posMs < seg.endMs -> true
+            seg.startMs in posMs..windowEndMs -> true
+            seg.startMs > windowEndMs -> false
+            else -> false
+        }
+    }
+
+internal fun mergeAutoSkipSegments(
+    clipSegments: List<SkipSegment>,
+    sponsorBlockSegments: List<SponsorBlockApi.Segment>,
+): List<SkipSegment> {
+    val merged = LinkedHashMap<String, SkipSegment>(clipSegments.size + sponsorBlockSegments.size)
+    for (seg in clipSegments) merged[seg.id] = seg
+    for (sb in sponsorBlockSegments) {
+        val id =
+            sb.uuid?.takeIf { it.isNotBlank() }?.let { "sb:$it" }
+                ?: "sb:${sb.category.orEmpty()}:${sb.actionType.orEmpty()}:${sb.startMs}-${sb.endMs}"
+        merged[id] =
+            SkipSegment(
+                id = id,
+                startMs = sb.startMs,
+                endMs = sb.endMs,
+                category = sb.category,
+                source = "sponsorblock",
+                actionType = sb.actionType,
+            )
+    }
+    return merged.values.toList()
 }
 
 internal fun PlayerActivity.normalizeClipTimeToMs(value: Double): Long {

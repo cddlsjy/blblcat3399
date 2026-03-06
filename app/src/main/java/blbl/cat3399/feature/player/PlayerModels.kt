@@ -6,7 +6,13 @@ import org.json.JSONObject
 data class SegmentMark(
     val startFraction: Float,
     val endFraction: Float,
+    val style: SegmentMarkStyle = SegmentMarkStyle.SKIP,
 )
+
+enum class SegmentMarkStyle {
+    SKIP,
+    POI,
+}
 
 internal data class SubtitleItem(
     val lan: String,
@@ -93,7 +99,16 @@ internal data class SkipSegment(
     val endMs: Long,
     val category: String?,
     val source: String,
+    val actionType: String? = null,
 )
+
+internal fun SkipSegment.isPoi(): Boolean {
+    val action = actionType?.trim().orEmpty()
+    if (action.equals("poi", ignoreCase = true)) return true
+    return category?.trim().equals("poi_highlight", ignoreCase = true)
+}
+
+internal fun SkipSegment.isAutoSkippable(): Boolean = !isPoi() && endMs > startMs
 
 internal data class PendingAutoSkip(
     val token: Int,
