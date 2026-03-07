@@ -139,10 +139,19 @@ internal fun PlayerActivity.startPlayback(
     val pendingPlayWhenReady = pendingStartPlayWhenReady
     pendingStartPositionMs = null
     pendingStartPlayWhenReady = null
+    val prevBvid = currentBvid.trim()
+    val prevAid = currentAid?.takeIf { it > 0 }
     val safeBvid = bvid?.trim().orEmpty()
     val safeAid = aidExtra?.takeIf { it > 0 }
     val startFromList = startedFromList
     if (safeBvid.isBlank() && safeAid == null) return
+
+    val sameMedia =
+        (safeBvid.isNotBlank() && safeBvid == prevBvid) ||
+            (safeBvid.isBlank() && safeAid != null && safeAid == prevAid)
+    if (!sameMedia) {
+        currentMainTitle = null
+    }
 
     cancelPendingAutoResume(reason = "new_media")
     autoResumeToken++
@@ -185,7 +194,6 @@ internal fun PlayerActivity.startPlayback(
             },
     )
 
-    binding.tvTitle.text = initialTitle?.takeIf { it.isNotBlank() } ?: "-"
     binding.tvOnline.text = "-人正在观看"
     binding.tvViewCount.text = "-"
     binding.llViewMeta.visibility = View.VISIBLE
@@ -195,6 +203,7 @@ internal fun PlayerActivity.startPlayback(
         engine = engine,
         preservePartsList = startFromList == PlayerVideoListKind.PARTS,
     )
+    updateTopTitleUi(placeholder = initialTitle)
 
     updatePlaylistControls()
 
@@ -245,8 +254,9 @@ internal fun PlayerActivity.startPlayback(
                     return@launch
                 }
 
-                val title = viewData.optString("title", "")
-                if (title.isNotBlank()) binding.tvTitle.text = title
+                val title = viewData.optString("title", "").trim()
+                if (title.isNotBlank()) currentMainTitle = title
+                updateTopTitleUi(placeholder = initialTitle)
                 currentViewDurationMs = viewData.optLong("duration", -1L).takeIf { it > 0 }?.times(1000L)
                 applyUpInfo(viewData)
                 applyTitleMeta(viewData)
@@ -267,6 +277,7 @@ internal fun PlayerActivity.startPlayback(
 
                 if (startFromList != PlayerVideoListKind.PARTS || partsListItems.isEmpty() || partsListIndex !in partsListItems.indices) {
                     refreshPartsListFromView(viewData, bvid = resolvedBvid)
+                    updateTopTitleUi(placeholder = initialTitle)
                 }
                 if (startFromList == PlayerVideoListKind.PAGE) {
                     updatePageListIndexForCurrentMedia(bvid = resolvedBvid, aid = currentAid, cid = cid)

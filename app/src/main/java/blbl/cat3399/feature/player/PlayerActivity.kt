@@ -205,6 +205,7 @@ class PlayerActivity : BaseActivity() {
     internal var currentEpId: Long? = null
     internal var currentAid: Long? = null
     internal var currentSeasonId: Long? = null
+    internal var currentMainTitle: String? = null
     internal var currentUpMid: Long = 0L
     internal var currentUpName: String? = null
     internal var currentUpAvatar: String? = null
@@ -1677,7 +1678,10 @@ class PlayerActivity : BaseActivity() {
         }
 
         requestDecoderReleaseOnStop(reason = "video_detail")
-        val title = binding.tvTitle.text?.toString()?.trim().orEmpty()
+        val title =
+            currentMainTitle?.trim().orEmpty().ifBlank {
+                binding.tvTitle.text?.toString()?.trim().orEmpty()
+            }
         startActivity(
             Intent(this, VideoDetailActivity::class.java)
                 .putExtra(VideoDetailActivity.EXTRA_BVID, bvid)
@@ -1904,6 +1908,35 @@ class PlayerActivity : BaseActivity() {
         currentUpName = owner.optString("name", "").trim().takeIf { it.isNotBlank() }
         currentUpAvatar = owner.optString("face", "").trim().takeIf { it.isNotBlank() }
         updateUpButton()
+    }
+
+    internal fun updateTopTitleUi(placeholder: String?) {
+        val main =
+            currentMainTitle?.trim().orEmpty().ifBlank {
+                placeholder?.trim().orEmpty()
+            }.ifBlank { "-" }
+
+        val partTitle =
+            if (partsListSource == "MultiPage") {
+                partsListItems
+                    .getOrNull(partsListIndex)
+                    ?.title
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+            } else {
+                null
+            }
+
+        val display =
+            if (!partTitle.isNullOrBlank() && main != "-" && main != partTitle) {
+                "$main  $partTitle"
+            } else {
+                main
+            }
+
+        if (binding.tvTitle.text?.toString() != display) {
+            binding.tvTitle.text = display
+        }
     }
 
     internal fun applyTitleMeta(viewData: JSONObject) {
