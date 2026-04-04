@@ -1097,6 +1097,8 @@ internal object VideoApi {
                     fontSize = e.fontsize,
                     weight = e.weight,
                     midHash = e.midHash?.trim()?.takeIf { it.isNotBlank() },
+                    dmid = e.id.takeIf { it > 0L },
+                    attr = e.attr,
                 )
             }
         AppLog.d(

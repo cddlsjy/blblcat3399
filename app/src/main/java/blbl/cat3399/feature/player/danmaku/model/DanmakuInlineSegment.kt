@@ -1,13 +1,14 @@
 package blbl.cat3399.feature.player.danmaku.model
 
-internal sealed interface DanmakuEmoteSegment {
+internal sealed interface DanmakuInlineSegment {
     data class Text(
         val start: Int,
         val end: Int,
-    ) : DanmakuEmoteSegment
+    ) : DanmakuInlineSegment
 
     data class Emote(
         val url: String,
-    ) : DanmakuEmoteSegment
-}
+    ) : DanmakuInlineSegment
 
+    data object HighLikeIcon : DanmakuInlineSegment
+}

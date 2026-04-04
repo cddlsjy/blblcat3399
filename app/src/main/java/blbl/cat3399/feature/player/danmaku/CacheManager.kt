@@ -2,9 +2,13 @@ package blbl.cat3399.feature.player.danmaku
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import androidx.appcompat.content.res.AppCompatResources
+import blbl.cat3399.BlblApp
+import blbl.cat3399.R
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
@@ -13,13 +17,15 @@ import android.os.Process
 import blbl.cat3399.core.emote.EmoteBitmapLoader
 import blbl.cat3399.core.emote.ReplyEmotePanelRepository
 import blbl.cat3399.core.log.AppLog
-import blbl.cat3399.feature.player.danmaku.model.DanmakuEmoteSegment
+import blbl.cat3399.core.model.isHighLiked
+import blbl.cat3399.feature.player.danmaku.model.DanmakuInlineSegment
 import blbl.cat3399.feature.player.danmaku.model.DanmakuItem
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 internal data class CacheStyle(
     val textSizePx: Float,
@@ -36,6 +42,7 @@ internal class CacheManager(
 ) {
     companion object {
         private const val TAG = "DanmakuCache"
+        private val HIGH_LIKE_ICON_COLOR = Color.parseColor("#F6C343")
 
         private const val MSG_BUILD_CACHE = 2001
         private const val MSG_CLEAR = 2002
@@ -85,6 +92,11 @@ internal class CacheManager(
         strokeWidth = max(1f, density)
     }
     private val emoteRect = RectF()
+    private val inlineLikeIcon by lazy(LazyThreadSafetyMode.NONE) {
+        AppCompatResources.getDrawable(BlblApp.instance, R.drawable.ic_action_like)?.mutate()?.apply {
+            setTint(HIGH_LIKE_ICON_COLOR)
+        }
+    }
 
     fun queueDepth(): Int = queueDepth.get().coerceAtLeast(0)
 
@@ -223,10 +235,10 @@ internal class CacheManager(
         val drawStrokeEnabled = strokeWidth > 0.01f
         if (text.isNotBlank()) {
             val segments =
-                item.emoteSegments
+                item.inlineSegments
                     ?: run {
-                        val parsed = if (text.contains('[')) parseEmoteSegments(text) else null
-                        if (parsed != null) item.emoteSegments = parsed
+                        val parsed = parseInlineSegments(item)
+                        if (parsed != null && shouldCacheInlineSegments(item)) item.inlineSegments = parsed
                         parsed
                     }
             if (segments == null) {
@@ -236,17 +248,18 @@ internal class CacheManager(
                 val emoteSizePx = textHeightPx
                 val emoteTop = outlinePad
                 val r = (emoteSizePx * 0.18f).coerceIn(2f, 10f)
+                val highLikeGapPx = inlineIconGapPx(emoteSizePx)
                 var cursorX = outlinePad
                 for (seg in segments) {
                     when (seg) {
-                        is DanmakuEmoteSegment.Text -> {
+                        is DanmakuInlineSegment.Text -> {
                             if (seg.end > seg.start) {
                                 if (drawStrokeEnabled) canvas.drawText(text, seg.start, seg.end, cursorX, baseline, stroke)
                                 canvas.drawText(text, seg.start, seg.end, cursorX, baseline, fill)
                                 cursorX += fill.measureText(text, seg.start, seg.end)
                             }
                         }
-                        is DanmakuEmoteSegment.Emote -> {
+                        is DanmakuInlineSegment.Emote -> {
                             val eb = EmoteBitmapLoader.getCached(seg.url)
                             if (eb != null && !eb.isRecycled) {
                                 emoteRect.set(cursorX, emoteTop, cursorX + emoteSizePx, emoteTop + emoteSizePx)
@@ -259,6 +272,10 @@ internal class CacheManager(
                                 canvas.drawRoundRect(emoteRect, r, r, placeholderStroke)
                             }
                             cursorX += emoteSizePx
+                        }
+                        DanmakuInlineSegment.HighLikeIcon -> {
+                            drawInlineLikeIcon(cursorX, emoteTop, emoteSizePx, canvas)
+                            cursorX += emoteSizePx + highLikeGapPx
                         }
                     }
                 }
@@ -279,14 +296,19 @@ internal class CacheManager(
         }
     }
 
-    private fun parseEmoteSegments(text: String): List<DanmakuEmoteSegment>? {
-        // Do not parse unless mapping is ready.
-        if (ReplyEmotePanelRepository.version() <= 0) return null
+    private fun parseInlineSegments(item: DanmakuItem): List<DanmakuInlineSegment>? {
+        val text = item.data.text
         var i = 0
         var lastTextStart = 0
-        var hasEmote = false
-        val out = ArrayList<DanmakuEmoteSegment>(8)
+        var hasInline = false
+        val out = ArrayList<DanmakuInlineSegment>(8)
+        if (item.data.isHighLiked) {
+            out.add(DanmakuInlineSegment.HighLikeIcon)
+            hasInline = true
+        }
+        val canParseEmote = ReplyEmotePanelRepository.version() > 0 && text.contains('[')
         while (i < text.length) {
+            if (!canParseEmote) break
             val open = text.indexOf('[', startIndex = i)
             if (open < 0) break
             val close = text.indexOf(']', startIndex = open + 1)
@@ -294,16 +316,37 @@ internal class CacheManager(
             val token = text.substring(open, close + 1)
             val url = ReplyEmotePanelRepository.urlForToken(token)
             if (url != null && url.startsWith("http")) {
-                hasEmote = true
-                if (open > lastTextStart) out.add(DanmakuEmoteSegment.Text(start = lastTextStart, end = open))
-                out.add(DanmakuEmoteSegment.Emote(url = url))
+                hasInline = true
+                if (open > lastTextStart) out.add(DanmakuInlineSegment.Text(start = lastTextStart, end = open))
+                out.add(DanmakuInlineSegment.Emote(url = url))
                 lastTextStart = close + 1
             }
             i = close + 1
         }
-        if (!hasEmote) return null
-        if (lastTextStart < text.length) out.add(DanmakuEmoteSegment.Text(start = lastTextStart, end = text.length))
+        if (!hasInline) return null
+        if (lastTextStart < text.length) out.add(DanmakuInlineSegment.Text(start = lastTextStart, end = text.length))
         return out
+    }
+
+    private fun shouldCacheInlineSegments(item: DanmakuItem): Boolean {
+        val text = item.data.text
+        return !text.contains('[') || ReplyEmotePanelRepository.version() > 0
+    }
+
+    private fun inlineIconGapPx(iconSizePx: Float): Float = (iconSizePx * 0.14f).coerceAtLeast(density * 2f)
+
+    private fun drawInlineLikeIcon(
+        left: Float,
+        top: Float,
+        sizePx: Float,
+        canvas: Canvas,
+    ) {
+        val icon = inlineLikeIcon ?: return
+        val right = (left + sizePx).roundToInt()
+        val bottom = (top + sizePx).roundToInt()
+        icon.setBounds(left.roundToInt(), top.roundToInt(), right, bottom)
+        icon.alpha = 255
+        icon.draw(canvas)
     }
 
     private data class CacheRequest(

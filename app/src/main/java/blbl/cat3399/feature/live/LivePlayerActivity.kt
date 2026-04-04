@@ -1405,6 +1405,7 @@ class LivePlayerActivity : BaseActivity() {
                 color = ev.color,
                 fontSize = 25,
                 weight = 0,
+                attr = 0,
             )
         binding.danmakuView.appendDanmakus(listOf(d), maxItems = 2000, alreadySorted = true)
         pushChatItem(LiveChatAdapter.Item(title = "弹幕", body = ev.text))

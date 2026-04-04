@@ -30,8 +30,8 @@ internal class DanmakuItem(
     @Volatile var cacheGeneration: Int = -1
     @Volatile var cacheState: DanmakuCacheState = DanmakuCacheState.Init
 
-    // Optional: cached parse result for emote tokens.
-    @Volatile var emoteSegments: List<DanmakuEmoteSegment>? = null
+    // Optional: cached parse result for inline segments.
+    @Volatile var inlineSegments: List<DanmakuInlineSegment>? = null
 
     // ---- Active state (action thread only) ----
     var kind: DanmakuKind = DanmakuKind.SCROLL
@@ -43,4 +43,3 @@ internal class DanmakuItem(
 
     fun timeMs(): Int = data.timeMs
 }
-
