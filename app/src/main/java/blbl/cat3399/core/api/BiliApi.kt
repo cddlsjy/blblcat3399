@@ -478,8 +478,11 @@ object BiliApi {
                             ?: covers?.optString(0)?.takeIf { s -> s.isNotBlank() }
                             ?: ""
 
+                    val durationSec = it.optInt("duration", 0).coerceAtLeast(0)
                     val viewAtSec = it.optLong("view_at").takeIf { v -> v > 0 }
-                    val progressSec = it.optLong("progress").takeIf { v -> v > 0 }
+                    val rawProgressSec = it.optLong("progress")
+                    val progressFinished = rawProgressSec < 0 || (durationSec > 0 && rawProgressSec >= durationSec.toLong())
+                    val progressSec = rawProgressSec.takeIf { v -> v > 0 && !progressFinished }
                     val showTitle = it.optString("show_title", "").trim().takeIf { s -> s.isNotBlank() }
                     val badge = it.optString("badge", "").trim().takeIf { s -> s.isNotBlank() }
                     val subtitleParts = buildList {
@@ -498,7 +501,7 @@ object BiliApi {
                             business = businessType.takeIf { s -> s.isNotBlank() },
                             title = it.optString("title", ""),
                             coverUrl = coverUrl,
-                            durationSec = it.optInt("duration", 0),
+                            durationSec = durationSec,
                             ownerName = it.optString("author_name", ""),
                             ownerFace = it.optString("author_face").takeIf { s -> s.isNotBlank() },
                             ownerMid =
@@ -509,6 +512,7 @@ object BiliApi {
                             pubDate = null,
                             pubDateText = subtitle,
                             progressSec = progressSec,
+                            progressFinished = progressFinished,
                         ),
                     )
                 }

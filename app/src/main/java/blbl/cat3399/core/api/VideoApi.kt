@@ -1341,12 +1341,16 @@ internal object VideoApi {
         if (bvid.isBlank()) return null
         val owner = obj.optJSONObject("owner")
         val stat = obj.optJSONObject("stat")
+        val durationSec = obj.optInt("duration", BiliApi.parseDuration(obj.optString("duration_text", "0:00"))).coerceAtLeast(0)
+        val rawProgressSec = obj.optLong("progress")
+        val progressFinished = rawProgressSec < 0 || (durationSec > 0 && rawProgressSec >= durationSec.toLong())
         return VideoCard(
             bvid = bvid,
             cid = obj.optLong("cid").takeIf { it > 0 },
+            aid = obj.optLong("aid").takeIf { it > 0 },
             title = obj.optString("title", ""),
             coverUrl = obj.optString("pic", obj.optString("cover", "")),
-            durationSec = obj.optInt("duration", BiliApi.parseDuration(obj.optString("duration_text", "0:00"))),
+            durationSec = durationSec,
             ownerName = owner?.optString("name", "").orEmpty(),
             ownerFace = owner?.optString("face", "")?.takeIf { it.isNotBlank() },
             ownerMid = owner?.optLong("mid")?.takeIf { it > 0 },
@@ -1358,6 +1362,8 @@ internal object VideoApi {
                     ?: stat?.optLong("dm")?.takeIf { it > 0 },
             pubDate = obj.optLong("pubdate").takeIf { it > 0 },
             pubDateText = null,
+            progressSec = rawProgressSec.takeIf { it > 0 && !progressFinished },
+            progressFinished = progressFinished,
         )
     }
 

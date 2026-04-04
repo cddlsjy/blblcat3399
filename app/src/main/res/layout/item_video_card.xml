@@ -56,6 +56,19 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="@id/guideline_cover_fade_top" />
 
+            <ProgressBar
+                android:id="@+id/progress_watch"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/video_card_progress_bar_height"
+                android:max="1000"
+                android:progress="0"
+                android:progressDrawable="@drawable/progress_video_card_watch"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent" />
+
             <TextView
                 android:id="@+id/tv_cover_left_bottom"
                 android:layout_width="wrap_content"
@@ -67,6 +80,24 @@
                 android:shadowRadius="2"
                 android:textColor="@color/blbl_text_on_media"
                 android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent" />
+
+            <TextView
+                android:id="@+id/tv_progress_left"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="@dimen/video_card_text_margin"
+                android:paddingHorizontal="@dimen/video_card_duration_padding_h"
+                android:paddingVertical="@dimen/video_card_duration_padding_v"
+                android:shadowColor="#CC000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="2"
+                android:textColor="@color/blbl_text_on_media"
+                android:textSize="@dimen/video_card_stat_text_size"
                 android:textStyle="bold"
                 android:visibility="gone"
                 app:layout_constraintBottom_toBottomOf="parent"
@@ -102,6 +133,23 @@
                 android:shadowRadius="2"
                 android:textColor="@color/blbl_text_on_media"
                 android:textSize="@dimen/video_card_duration_text_size"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent" />
+
+            <TextView
+                android:id="@+id/tv_progress_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="@dimen/video_card_text_margin"
+                android:paddingHorizontal="@dimen/video_card_duration_padding_h"
+                android:paddingVertical="@dimen/video_card_duration_padding_v"
+                android:shadowColor="#CC000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="2"
+                android:textColor="@color/blbl_text_on_media"
+                android:textSize="@dimen/video_card_duration_text_size"
+                android:visibility="gone"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent" />
 

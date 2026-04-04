@@ -86,6 +86,11 @@ class MyToViewFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler {
                                 Intent(requireContext(), PlayerActivity::class.java)
                                     .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
                                     .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
+                                    .apply {
+                                        card.progressSec?.takeIf { it >= 5L }?.let { sec ->
+                                            putExtra(PlayerActivity.EXTRA_START_POSITION_MS, sec * 1000L)
+                                        }
+                                    }
                                     .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
                                     .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
                             )

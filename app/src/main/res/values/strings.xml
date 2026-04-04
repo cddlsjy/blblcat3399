@@ -34,6 +34,7 @@
     <string name="my_btn_continue">继续观看</string>
     <string name="my_btn_play">播放</string>
     <string name="my_btn_followed">已追</string>
+    <string name="video_card_progress_complete">已看完</string>
     <string name="search_clear">清空</string>
     <string name="search_backspace">后退</string>
     <string name="search_action">搜索</string>

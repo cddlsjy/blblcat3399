@@ -12,6 +12,7 @@ import blbl.cat3399.core.model.VideoCard
 import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.core.util.Format
 import blbl.cat3399.databinding.ItemVideoCardBinding
+import kotlin.math.roundToInt
 
 class VideoCardAdapter(
     private val onClick: (VideoCard, Int) -> Unit,
@@ -22,6 +23,12 @@ class VideoCardAdapter(
     private val isSelected: ((VideoCard, Int) -> Boolean)? = null,
 ) : RecyclerView.Adapter<VideoCardAdapter.Vh>() {
     private val items = ArrayList<VideoCard>()
+
+    private data class WatchProgressUi(
+        val labelLeft: String,
+        val labelRight: String?,
+        val progressPermille: Int,
+    )
 
     init {
         setHasStableIds(true)
@@ -87,10 +94,17 @@ class VideoCardAdapter(
 
             binding.root.isSelected = isSelected?.invoke(item, position) == true
 
+            val watchProgressUi = buildWatchProgressUi(item)
             val coverLeftBottomText = item.coverLeftBottomText?.trim()
             val isEpisodeStyleCard = item.coverLeftBottomText != null
-            binding.tvCoverLeftBottom.isVisible = coverLeftBottomText?.isNotBlank() == true
+            binding.tvCoverLeftBottom.isVisible = watchProgressUi == null && coverLeftBottomText?.isNotBlank() == true
             binding.tvCoverLeftBottom.text = coverLeftBottomText.orEmpty()
+            binding.tvProgressLeft.isVisible = watchProgressUi != null
+            binding.tvProgressLeft.text = watchProgressUi?.labelLeft.orEmpty()
+            binding.tvProgressTime.isVisible = watchProgressUi?.labelRight != null
+            binding.tvProgressTime.text = watchProgressUi?.labelRight.orEmpty()
+            binding.progressWatch.isVisible = watchProgressUi != null
+            binding.progressWatch.progress = watchProgressUi?.progressPermille ?: 0
 
             binding.tvTitle.text = item.title
             val subtitleText =
@@ -104,7 +118,7 @@ class VideoCardAdapter(
             binding.tvSubtitle.isVisible = showSubtitleRow && subtitleText.isNotBlank()
             binding.tvPubdate.isVisible = showSubtitleRow && pubDateText.isNotBlank()
 
-            val showDuration = !isEpisodeStyleCard && item.durationSec > 0
+            val showDuration = !isEpisodeStyleCard && watchProgressUi == null && item.durationSec > 0
             binding.tvDuration.isVisible = showDuration
             if (showDuration) {
                 binding.tvDuration.text = Format.duration(item.durationSec)
@@ -112,7 +126,7 @@ class VideoCardAdapter(
 
             val viewCount = item.view?.takeIf { it > 0 }
             val danmakuCount = item.danmaku?.takeIf { it > 0 }
-            val showStats = !isEpisodeStyleCard && (viewCount != null || danmakuCount != null)
+            val showStats = !isEpisodeStyleCard && watchProgressUi == null && (viewCount != null || danmakuCount != null)
             binding.llStats.isVisible = showStats
             binding.ivStatPlay.isVisible = viewCount != null
             binding.tvView.isVisible = viewCount != null
@@ -180,22 +194,79 @@ class VideoCardAdapter(
             val insetX = textMargin + padH
             val shiftX = -insetX * 0.5f
             binding.llStats.translationX = shiftX
+            binding.tvProgressLeft.translationX = shiftX
             binding.tvDuration.translationX = shiftX
+            binding.tvProgressTime.translationX = shiftX
 
             // "Move down 20%": apply 20% of overlay height (and a tiny baseline from margin)
             // so the change is visible across different UI scales.
             fun applyShiftY() {
-                val overlayH = maxOf(binding.llStats.height, binding.tvDuration.height)
+                val overlayH =
+                    maxOf(
+                        maxOf(binding.llStats.height, binding.tvDuration.height),
+                        maxOf(binding.tvProgressLeft.height, binding.tvProgressTime.height),
+                    )
                 val shiftY = (textMargin + padV) * 0.2f + overlayH * 0.2f
                 binding.llStats.translationY = shiftY
+                binding.tvProgressLeft.translationY = shiftY
                 binding.tvDuration.translationY = shiftY
+                binding.tvProgressTime.translationY = shiftY
             }
 
-            if (binding.llStats.height > 0 || binding.tvDuration.height > 0) {
+            if (binding.llStats.height > 0 ||
+                binding.tvDuration.height > 0 ||
+                binding.tvProgressLeft.height > 0 ||
+                binding.tvProgressTime.height > 0
+            ) {
                 applyShiftY()
             } else {
                 binding.root.post { applyShiftY() }
             }
+        }
+
+        private fun buildWatchProgressUi(item: VideoCard): WatchProgressUi? {
+            val durationSec = item.durationSec.takeIf { it > 0 } ?: return if (item.progressFinished) {
+                WatchProgressUi(
+                    labelLeft = binding.root.context.getString(R.string.video_card_progress_complete),
+                    labelRight = null,
+                    progressPermille = 1000,
+                )
+            } else {
+                null
+            }
+            if (item.progressFinished) {
+                val full = Format.clock(durationSec.toLong())
+                return WatchProgressUi(
+                    labelLeft = binding.root.context.getString(R.string.video_card_progress_complete),
+                    labelRight = "$full / $full",
+                    progressPermille = 1000,
+                )
+            }
+
+            val positionSec = item.progressSec?.takeIf { it > 0L } ?: return null
+            val clampedPositionSec = positionSec.coerceIn(0L, durationSec.toLong())
+            if (clampedPositionSec >= durationSec.toLong()) {
+                val full = Format.clock(durationSec.toLong())
+                return WatchProgressUi(
+                    labelLeft = binding.root.context.getString(R.string.video_card_progress_complete),
+                    labelRight = "$full / $full",
+                    progressPermille = 1000,
+                )
+            }
+
+            val percent =
+                ((clampedPositionSec.toDouble() * 100.0) / durationSec.toDouble())
+                    .roundToInt()
+                    .coerceIn(1, 99)
+            val permille =
+                ((clampedPositionSec.toDouble() * 1000.0) / durationSec.toDouble())
+                    .roundToInt()
+                    .coerceIn(1, 999)
+            return WatchProgressUi(
+                labelLeft = "${percent}%",
+                labelRight = "${Format.clock(clampedPositionSec)} / ${Format.clock(durationSec.toLong())}",
+                progressPermille = permille,
+            )
         }
     }
 }

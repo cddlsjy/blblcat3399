@@ -26,6 +26,8 @@ data class VideoCard(
     val seasonId: Long? = null,
     // Optional last watched progress from listing APIs (seconds).
     val progressSec: Long? = null,
+    // True when the listing API marks this item as fully watched.
+    val progressFinished: Boolean = false,
 ) {
     fun stableKey(): String =
         when {

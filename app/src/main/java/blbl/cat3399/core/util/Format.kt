@@ -42,6 +42,15 @@ object Format {
         else String.format(Locale.US, "%02d:%02d", m, ss)
     }
 
+    fun clock(sec: Long): String {
+        val safe = sec.coerceAtLeast(0L)
+        val h = safe / 3600L
+        val m = (safe % 3600L) / 60L
+        val ss = safe % 60L
+        return if (h > 0L) String.format(Locale.US, "%d:%02d:%02d", h, m, ss)
+        else String.format(Locale.US, "%d:%02d", m, ss)
+    }
+
     fun count(n: Long?): String {
         val v = n ?: return "-"
         return when {
