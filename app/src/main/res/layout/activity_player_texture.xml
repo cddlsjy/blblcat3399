@@ -118,7 +118,7 @@
             android:focusableInTouchMode="false"
             android:padding="@dimen/player_top_button_padding"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_back"
+            app:srcCompat="@drawable/ic_back"
             app:tint="@color/player_button_tint"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -170,7 +170,7 @@
                         android:layout_width="@dimen/video_card_stat_icon_size"
                         android:layout_height="@dimen/video_card_stat_icon_size"
                         android:contentDescription="@string/app_name"
-                        android:src="@drawable/ic_player_watching"
+                        app:srcCompat="@drawable/ic_player_watching"
                         app:tint="?android:attr/textColorSecondary" />
 
                     <TextView
@@ -198,7 +198,7 @@
                         android:layout_width="@dimen/video_card_stat_icon_size"
                         android:layout_height="@dimen/video_card_stat_icon_size"
                         android:contentDescription="@string/app_name"
-                        android:src="@drawable/ic_stat_play"
+                        app:srcCompat="@drawable/ic_stat_play"
                         app:tint="?android:attr/textColorSecondary" />
 
                     <TextView
@@ -248,7 +248,7 @@
             android:focusable="true"
             android:padding="@dimen/player_top_button_padding"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_settings"
+            app:srcCompat="@drawable/ic_settings"
             app:tint="@color/player_button_tint"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="@id/btn_back"
@@ -388,7 +388,7 @@
                 android:focusable="true"
                 android:padding="?attr/playerOsdPadTransport"
                 android:scaleType="fitCenter"
-                android:src="@drawable/ic_player_prev"
+                app:srcCompat="@drawable/ic_player_prev"
                 app:tint="@color/player_button_tint"
                 android:visibility="gone" />
 
@@ -402,7 +402,7 @@
             android:focusable="true"
             android:padding="?attr/playerOsdPadTransport"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_player_play"
+            app:srcCompat="@drawable/ic_player_play"
             app:tint="@color/player_button_tint" />
 
             <ImageButton
@@ -415,7 +415,7 @@
             android:focusable="true"
             android:padding="?attr/playerOsdPadTransport"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_player_next"
+            app:srcCompat="@drawable/ic_player_next"
             app:tint="@color/player_button_tint" />
 
             <ImageButton
@@ -427,7 +427,7 @@
                 android:focusable="true"
             android:padding="?attr/playerOsdPadNormal"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_player_subtitle"
+            app:srcCompat="@drawable/ic_player_subtitle"
             app:tint="@color/player_button_tint"
             android:contentDescription="@string/player_btn_subtitle" />
 
@@ -441,7 +441,7 @@
                 android:focusable="true"
                 android:padding="?attr/playerOsdPadNormal"
                 android:scaleType="fitCenter"
-                android:src="@drawable/ic_player_danmaku"
+                app:srcCompat="@drawable/ic_player_danmaku"
                 />
 
             <ImageButton
@@ -454,7 +454,7 @@
                 android:focusable="true"
                 android:padding="?attr/playerOsdPadNormal"
                 android:scaleType="fitCenter"
-                android:src="@drawable/ic_comment"
+                app:srcCompat="@drawable/ic_comment"
                 app:tint="@color/player_button_tint" />
 
             <ImageButton
@@ -467,7 +467,7 @@
                 android:focusable="true"
             android:padding="?attr/playerOsdPadNormal"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_player_up"
+            app:srcCompat="@drawable/ic_player_up"
             app:tint="@color/player_button_tint" />
 
             <blbl.cat3399.feature.player.HoldProgressImageButton
@@ -480,7 +480,7 @@
                 android:focusable="true"
             android:padding="?attr/playerOsdPadSmall"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_action_like"
+            app:srcCompat="@drawable/ic_action_like"
             app:tint="@color/player_button_tint"
             android:visibility="gone" />
 
@@ -494,7 +494,7 @@
                 android:focusable="true"
             android:padding="?attr/playerOsdPadSmall"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_action_coin"
+            app:srcCompat="@drawable/ic_action_coin"
             app:tint="@color/player_button_tint"
             android:visibility="gone" />
 
@@ -508,7 +508,7 @@
                 android:focusable="true"
             android:padding="?attr/playerOsdPadSmall"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_action_fav"
+            app:srcCompat="@drawable/ic_action_fav"
                 app:tint="@color/player_button_tint"
                 android:visibility="gone" />
 
@@ -522,7 +522,7 @@
                 android:focusable="true"
                 android:padding="?attr/playerOsdPadSmall"
                 android:scaleType="fitCenter"
-                android:src="@drawable/ic_chevron_down"
+                app:srcCompat="@drawable/ic_chevron_down"
                 app:tint="@color/player_button_tint" />
 
             <ImageButton
@@ -535,7 +535,7 @@
                 android:focusable="true"
                 android:padding="?attr/playerOsdPadSmall"
                 android:scaleType="fitCenter"
-                android:src="@drawable/ic_player_detail"
+                app:srcCompat="@drawable/ic_player_detail"
                 app:tint="@color/player_button_tint"
                 android:visibility="gone" />
 
@@ -548,7 +548,7 @@
                 android:focusable="true"
             android:padding="?attr/playerOsdPadSmall"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_settings"
+            app:srcCompat="@drawable/ic_settings"
             app:tint="@color/player_button_tint" />
         </LinearLayout>
 
@@ -696,7 +696,7 @@
         android:focusable="false"
         android:padding="@dimen/player_touch_lock_button_padding"
         android:scaleType="fitCenter"
-        android:src="@drawable/ic_player_unlock"
+        app:srcCompat="@drawable/ic_player_unlock"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="@id/player_view"
         app:layout_constraintStart_toStartOf="@id/player_view"
@@ -1080,7 +1080,7 @@
                 android:alpha="0.7"
                 android:clickable="true"
                 android:contentDescription="@string/app_name"
-                android:src="@drawable/ic_chevron_left"
+                app:srcCompat="@drawable/ic_chevron_left"
                 android:visibility="gone"
                 app:layout_constraintBottom_toBottomOf="@id/iv_comment_image"
                 app:layout_constraintEnd_toStartOf="@id/iv_comment_image"
@@ -1094,7 +1094,7 @@
                 android:alpha="0.7"
                 android:clickable="true"
                 android:contentDescription="@string/app_name"
-                android:src="@drawable/ic_chevron_right"
+                app:srcCompat="@drawable/ic_chevron_right"
                 android:visibility="gone"
                 app:layout_constraintBottom_toBottomOf="@id/iv_comment_image"
                 app:layout_constraintStart_toEndOf="@id/iv_comment_image"
