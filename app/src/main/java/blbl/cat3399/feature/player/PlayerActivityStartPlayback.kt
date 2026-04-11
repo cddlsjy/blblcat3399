@@ -411,6 +411,7 @@ internal fun PlayerActivity.startPlayback(
                 showRiskControlBypassHintIfNeeded(playJson)
                 lastAvailableQns = parseDashVideoQnList(playJson)
                 lastAvailableAudioIds = parseDashAudioIdList(playJson, constraints = playbackConstraints)
+                logPlayUrlTrackSummary(source = "start", playJson = playJson, constraints = playbackConstraints)
                 if (subtitleSupported) {
                     trace?.log("subtitle:await")
                     subtitleConfig = subJob?.await()
@@ -442,10 +443,7 @@ internal fun PlayerActivity.startPlayback(
                         }
                         lastPickedDash = playable
                         debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
-                        AppLog.i(
-                            "Player",
-                            "picked DASH qn=${playable.qn} codecid=${playable.codecid} dv=${playable.isDolbyVision} a=${playable.audioKind}(${playable.audioId}) video=${playable.videoUrl}",
-                        )
+                        logPickedPlayable(source = "start", playable = playable)
                         engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
                         applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
                         applyAudioFallbackIfNeeded(requestedAudioId = session.targetAudioId, actualAudioId = playable.audioId)
@@ -456,10 +454,7 @@ internal fun PlayerActivity.startPlayback(
                         session = session.copy(actualAudioId = 0)
                         (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
                         debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
-                        AppLog.i(
-                            "Player",
-                            "picked VideoOnly qn=${playable.qn} codecid=${playable.codecid} dv=${playable.isDolbyVision} video=${playable.videoUrl}",
-                        )
+                        logPickedPlayable(source = "start", playable = playable)
                         engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
                         applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
                     }
@@ -469,7 +464,7 @@ internal fun PlayerActivity.startPlayback(
                         session = session.copy(actualAudioId = 0)
                         (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
                         debug.cdnHost = runCatching { Uri.parse(playable.url).host }.getOrNull()
-                        AppLog.i("Player", "picked Progressive url=${playable.url}")
+                        logPickedPlayable(source = "start", playable = playable)
                         engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
                     }
                 }
