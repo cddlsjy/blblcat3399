@@ -89,7 +89,7 @@ private object LivePlayerSettingKeys {
 }
 
 class LivePlayerActivity : BaseActivity() {
-    override fun shouldRecreateOnUiScaleChange(): Boolean = false
+    override fun shouldRecreateOnUiScaleChange(): Boolean = true
 
     private lateinit var binding: ActivityPlayerBinding
     private var player: BlblPlayerEngine? = null
@@ -146,8 +146,9 @@ class LivePlayerActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         PlayerOsdSizing.applyTheme(this)
         val prefs = BiliClient.prefs
+        val playerInflater = PlayerOsdSizing.cloneInflater(this, layoutInflater)
         val root =
-            layoutInflater.inflate(
+            playerInflater.inflate(
                 if (prefs.playerRenderViewType == AppPrefs.PLAYER_RENDER_VIEW_TEXTURE_VIEW) blbl.cat3399.R.layout.activity_player_texture else blbl.cat3399.R.layout.activity_player,
                 null,
             )

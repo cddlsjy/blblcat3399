@@ -102,7 +102,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class PlayerActivity : BaseActivity() {
-    override fun shouldRecreateOnUiScaleChange(): Boolean = false
+    override fun shouldRecreateOnUiScaleChange(): Boolean = true
 
     internal lateinit var binding: ActivityPlayerBinding
     internal var player: BlblPlayerEngine? = null
@@ -653,8 +653,9 @@ class PlayerActivity : BaseActivity() {
         PlayerOsdSizing.applyTheme(this)
         ActivityStackLimiter.register(group = ACTIVITY_STACK_GROUP, activity = this, maxDepth = ACTIVITY_STACK_MAX_DEPTH)
         val prefs = BiliClient.prefs
+        val playerInflater = PlayerOsdSizing.cloneInflater(this, layoutInflater)
         val root =
-            layoutInflater.inflate(
+            playerInflater.inflate(
                 if (prefs.playerRenderViewType == AppPrefs.PLAYER_RENDER_VIEW_TEXTURE_VIEW) R.layout.activity_player_texture else R.layout.activity_player,
                 null,
             )
