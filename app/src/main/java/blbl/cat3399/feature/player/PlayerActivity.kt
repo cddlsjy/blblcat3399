@@ -663,7 +663,7 @@ class PlayerActivity : BaseActivity() {
             )
         binding = ActivityPlayerBinding.bind(root)
         setContentView(binding.root)
-        Immersive.apply(this, prefs.fullscreenEnabled)
+        Immersive.apply(this, prefs.fullscreenEnabled, playerScreen = true)
         PlayerUiMode.applyVideo(this, binding)
         binding.topBar.setBackgroundResource(R.drawable.bg_player_top_scrim_strong)
         ensureBottomBarConstraintSets()
@@ -1467,7 +1467,7 @@ class PlayerActivity : BaseActivity() {
         if (exitTraceStartAtMs > 0L) {
             exitTraceLog("window:focus", "hasFocus=${if (hasFocus) 1 else 0}")
         }
-        if (hasFocus) Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
+        if (hasFocus) Immersive.apply(this, BiliClient.prefs.fullscreenEnabled, playerScreen = true)
     }
 
     override fun onResume() {

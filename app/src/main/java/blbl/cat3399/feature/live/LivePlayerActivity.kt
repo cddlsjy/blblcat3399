@@ -153,7 +153,7 @@ class LivePlayerActivity : BaseActivity() {
             )
         binding = ActivityPlayerBinding.bind(root)
         setContentView(binding.root)
-        Immersive.apply(this, prefs.fullscreenEnabled)
+        Immersive.apply(this, prefs.fullscreenEnabled, playerScreen = true)
         PlayerUiMode.applyLive(this, binding)
         resetBufferingOverlayState()
 
@@ -391,7 +391,7 @@ class LivePlayerActivity : BaseActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
+        if (hasFocus) Immersive.apply(this, BiliClient.prefs.fullscreenEnabled, playerScreen = true)
     }
 
     override fun onDestroy() {
