@@ -216,7 +216,6 @@ class LivePlayerActivity : BaseActivity() {
                     PlayerEngineKind.IjkPlayer
                 }
                 desiredEngineKind == PlayerEngineKind.IjkPlayer && !IjkPlayerPlugin.isInstalled(this) -> {
-                    AppToast.showLong(this, "IjkPlayer 插件未安装，已回退到 ExoPlayer")
                     PlayerEngineKind.ExoPlayer
                 }
                 else -> desiredEngineKind
