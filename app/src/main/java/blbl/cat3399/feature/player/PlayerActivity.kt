@@ -7,6 +7,7 @@ import android.net.Uri
 import android.app.Activity
 import android.app.Application
 import android.graphics.SurfaceTexture
+import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import android.os.SystemClock
@@ -797,11 +798,16 @@ class PlayerActivity : BaseActivity() {
 
         val desiredEngineKind = session.engineKind
         val engineKind =
-            if (desiredEngineKind == PlayerEngineKind.IjkPlayer && !IjkPlayerPlugin.isInstalled(this)) {
-                AppToast.showLong(this, "IjkPlayer 插件未安装，已回退到 ExoPlayer")
-                PlayerEngineKind.ExoPlayer
-            } else {
-                desiredEngineKind
+            when {
+                Build.VERSION.SDK_INT < 21 && desiredEngineKind == PlayerEngineKind.ExoPlayer -> {
+                    AppLog.i("PlayerActivity", "ExoPlayer requires API 21+, falling back to IjkPlayer")
+                    PlayerEngineKind.IjkPlayer
+                }
+                desiredEngineKind == PlayerEngineKind.IjkPlayer && !IjkPlayerPlugin.isInstalled(this) -> {
+                    AppToast.showLong(this, "IjkPlayer 插件未安装，已回退到 ExoPlayer")
+                    PlayerEngineKind.ExoPlayer
+                }
+                else -> desiredEngineKind
             }
         if (session.engineKind != engineKind) {
             session = session.copy(engineKind = engineKind)

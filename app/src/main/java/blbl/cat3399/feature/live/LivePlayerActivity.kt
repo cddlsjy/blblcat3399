@@ -210,11 +210,16 @@ class LivePlayerActivity : BaseActivity() {
 
         val desiredEngineKind = session.engineKind
         val engineKind =
-            if (desiredEngineKind == PlayerEngineKind.IjkPlayer && !IjkPlayerPlugin.isInstalled(this)) {
-                AppToast.showLong(this, "IjkPlayer 插件未安装，已回退到 ExoPlayer")
-                PlayerEngineKind.ExoPlayer
-            } else {
-                desiredEngineKind
+            when {
+                Build.VERSION.SDK_INT < 21 && desiredEngineKind == PlayerEngineKind.ExoPlayer -> {
+                    AppLog.i("LivePlayerActivity", "ExoPlayer requires API 21+, falling back to IjkPlayer")
+                    PlayerEngineKind.IjkPlayer
+                }
+                desiredEngineKind == PlayerEngineKind.IjkPlayer && !IjkPlayerPlugin.isInstalled(this) -> {
+                    AppToast.showLong(this, "IjkPlayer 插件未安装，已回退到 ExoPlayer")
+                    PlayerEngineKind.ExoPlayer
+                }
+                else -> desiredEngineKind
             }
         if (session.engineKind != engineKind) {
             session = session.copy(engineKind = engineKind)
