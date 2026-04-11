@@ -1484,8 +1484,8 @@ class SettingsInteractionHandler(
     }
 
     private fun evictNetworkConnections() {
-        runCatching { BiliClient.apiOkHttp.connectionPool.evictAll() }
-        runCatching { BiliClient.cdnOkHttp.connectionPool.evictAll() }
+        runCatching { BiliClient.apiOkHttp.connectionPool().evictAll() }
+        runCatching { BiliClient.cdnOkHttp.connectionPool().evictAll() }
         runCatching { ApkUpdater.evictConnections() }
     }
 
@@ -2590,8 +2590,8 @@ class SettingsInteractionHandler(
         val prefs = BiliClient.prefs
         val now = System.currentTimeMillis()
         val tokenCookie = BiliClient.cookies.getCookie("x-bili-gaia-vtoken")
-        val tokenOk = tokenCookie != null && tokenCookie.expiresAt > now
-        val expiresAt = tokenCookie?.expiresAt ?: -1L
+        val tokenOk = tokenCookie != null && tokenCookie.expiresAt() > now
+        val expiresAt = tokenCookie?.expiresAt() ?: -1L
 
         val vVoucher = prefs.gaiaVgateVVoucher.orEmpty().trim()
         val hasVoucher = vVoucher.isNotBlank()

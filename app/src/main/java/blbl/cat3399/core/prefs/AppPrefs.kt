@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.Build
 import android.provider.Settings
 import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -1063,8 +1062,8 @@ class AppPrefs(context: Context) {
 
         fun normalizePlayerAutoSkipServerBaseUrl(raw: String?): String? {
             val value = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
-            val url = value.toHttpUrlOrNull() ?: return null
-            if (url.query != null || url.fragment != null) return null
+            val url = HttpUrl.parse(value) ?: return null
+            if (url.query() != null || url.fragment() != null) return null
             return url.toString().trimEnd('/')
         }
     }
