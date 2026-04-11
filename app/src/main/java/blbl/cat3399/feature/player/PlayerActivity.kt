@@ -801,12 +801,6 @@ class PlayerActivity : BaseActivity() {
         val desiredEngineKind = session.engineKind
         val engineKind =
             when {
-                Build.VERSION.SDK_INT < 21 && desiredEngineKind == PlayerEngineKind.ExoPlayer -> {
-                    AppLog.i("PlayerActivity", "ExoPlayer requires API 21+, falling back to IjkPlayer")
-                    // Also persist the correction so the toast doesn't repeat every launch.
-                    prefs.playerEngineKind = blbl.cat3399.core.prefs.AppPrefs.PLAYER_ENGINE_IJK
-                    PlayerEngineKind.IjkPlayer
-                }
                 desiredEngineKind == PlayerEngineKind.IjkPlayer && !IjkPlayerPlugin.isInstalled(this) -> {
                     PlayerEngineKind.ExoPlayer
                 }
