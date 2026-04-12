@@ -14,6 +14,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import org.conscrypt.Conscrypt
+import java.security.Security
 
 class BlblApp : MultiDexApplication() {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -28,6 +30,9 @@ class BlblApp : MultiDexApplication() {
             "app=${BuildConfig.VERSION_NAME} api=${Build.VERSION.SDK_INT} device=${Build.MANUFACTURER} ${Build.MODEL} abi=${DeviceAbi.getFirstAbi()}",
         )
         AppLog.i("BlblApp", "onCreate")
+        if (Build.VERSION.SDK_INT < 21) {
+            Security.insertProviderAt(Conscrypt.newProvider(), 1)
+        }
         BiliClient.init(this)
         LauncherAliasManager.sync(this)
         appScope.launch {

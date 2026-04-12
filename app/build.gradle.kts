@@ -116,6 +116,7 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp:3.12.13")
     implementation("org.brotli:dec:0.1.2")
+    implementation("org.conscrypt:conscrypt-android:2.5.2")
 
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.4.1")

@@ -1,6 +1,7 @@
 package blbl.cat3399.core.net
 
 import android.content.Context
+import android.os.Build
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.prefs.AppPrefs
 import kotlinx.coroutines.Dispatchers
@@ -12,9 +13,14 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.Response
+import org.conscrypt.Conscrypt
 import org.json.JSONObject
 import java.io.IOException
+import java.security.KeyStore
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 
 object BiliClient {
     private const val TAG = "BiliClient"
@@ -50,13 +56,28 @@ object BiliClient {
         prefs = AppPrefs(context.applicationContext)
         cookies = CookieStore(context.applicationContext)
         val dns = ipv4OnlyDns { prefs.ipv4OnlyEnabled }
-        val baseClient = OkHttpClient.Builder()
+        val baseBuilder = OkHttpClient.Builder()
             .cookieJar(cookies)
             .dns(dns)
             .connectTimeout(12, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
-            .build()
+        // API 19–20 的系统 SSL 不支持 TLS 1.2/1.3，借助 Conscrypt 补齐。
+        if (Build.VERSION.SDK_INT < 21) {
+            try {
+                val provider = Conscrypt.newProvider()
+                val sslContext = SSLContext.getInstance("TLSv1.2", provider)
+                sslContext.init(null, null, null)
+                val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+                tmf.init(null as KeyStore?)
+                val trustManager = tmf.trustManagers.first { it is X509TrustManager } as X509TrustManager
+                baseBuilder.sslSocketFactory(sslContext.socketFactory, trustManager)
+                AppLog.i(TAG, "Conscrypt TLS socket factory installed for API ${Build.VERSION.SDK_INT}")
+            } catch (e: Exception) {
+                AppLog.w(TAG, "Failed to install Conscrypt TLS socket factory", e)
+            }
+        }
+        val baseClient = baseBuilder.build()
 
         apiOkHttp = baseClient.newBuilder()
             .addInterceptor { chain ->
