@@ -3,6 +3,7 @@ package blbl.cat3399.feature.live
 import blbl.cat3399.core.api.BiliApi
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.net.BiliClient
+import blbl.cat3399.core.net.statusCode
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -225,8 +226,8 @@ class LiveMessageClient(
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             onStatus("弹幕连接失败：${t.message}")
-            AppLog.w("LiveWs", "onFailure roomId=$roomId code=${response?.code()}", t)
-            scheduleReconnect("onFailure code=${response?.code()} ${t::class.java.simpleName}:${t.message}")
+            AppLog.w("LiveWs", "onFailure roomId=$roomId code=${response?.statusCode()}", t)
+            scheduleReconnect("onFailure code=${response?.statusCode()} ${t::class.java.simpleName}:${t.message}")
         }
 
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {

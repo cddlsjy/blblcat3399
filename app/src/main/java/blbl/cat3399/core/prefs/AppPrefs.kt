@@ -3,7 +3,9 @@ package blbl.cat3399.core.prefs
 import android.content.Context
 import android.os.Build
 import android.provider.Settings
-import okhttp3.HttpUrl
+import blbl.cat3399.core.net.parseHttpUrl
+import blbl.cat3399.core.net.urlFragment
+import blbl.cat3399.core.net.urlQuery
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -1062,8 +1064,8 @@ class AppPrefs(context: Context) {
 
         fun normalizePlayerAutoSkipServerBaseUrl(raw: String?): String? {
             val value = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
-            val url = HttpUrl.parse(value) ?: return null
-            if (url.query() != null || url.fragment() != null) return null
+            val url = value.parseHttpUrl() ?: return null
+            if (url.urlQuery() != null || url.urlFragment() != null) return null
             return url.toString().trimEnd('/')
         }
     }

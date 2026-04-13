@@ -29,6 +29,8 @@ import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.log.LogExporter
 import blbl.cat3399.core.log.LogUploadClient
 import blbl.cat3399.core.net.BiliClient
+import blbl.cat3399.core.net.cookieExpiresAt
+import blbl.cat3399.core.net.evictConnectionPool
 import blbl.cat3399.core.prefs.AppConfigBackup
 import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.prefs.CustomPageConfig
@@ -489,7 +491,11 @@ class SettingsInteractionHandler(
     ): String {
         val tzId = runCatching { java.util.TimeZone.getDefault().id }.getOrNull().orEmpty()
         val locale = runCatching { Locale.getDefault() }.getOrNull()
-        val localeTag = runCatching { locale?.toLanguageTag() }.getOrNull().orEmpty()
+        val localeTag = if (Build.VERSION.SDK_INT >= 21) {
+            runCatching { locale?.toLanguageTag() }.getOrNull().orEmpty()
+        } else {
+            locale?.toString().orEmpty()
+        }
         val prefs = BiliClient.prefs
 
         val json =
@@ -1484,8 +1490,8 @@ class SettingsInteractionHandler(
     }
 
     private fun evictNetworkConnections() {
-        runCatching { BiliClient.apiOkHttp.connectionPool().evictAll() }
-        runCatching { BiliClient.cdnOkHttp.connectionPool().evictAll() }
+        runCatching { BiliClient.apiOkHttp.evictConnectionPool() }
+        runCatching { BiliClient.cdnOkHttp.evictConnectionPool() }
         runCatching { ApkUpdater.evictConnections() }
     }
 
@@ -2590,8 +2596,8 @@ class SettingsInteractionHandler(
         val prefs = BiliClient.prefs
         val now = System.currentTimeMillis()
         val tokenCookie = BiliClient.cookies.getCookie("x-bili-gaia-vtoken")
-        val tokenOk = tokenCookie != null && tokenCookie.expiresAt() > now
-        val expiresAt = tokenCookie?.expiresAt() ?: -1L
+        val tokenOk = tokenCookie != null && tokenCookie.cookieExpiresAt() > now
+        val expiresAt = tokenCookie?.cookieExpiresAt() ?: -1L
 
         val vVoucher = prefs.gaiaVgateVVoucher.orEmpty().trim()
         val hasVoucher = vVoucher.isNotBlank()

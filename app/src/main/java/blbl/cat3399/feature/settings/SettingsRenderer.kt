@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import blbl.cat3399.BuildConfig
 import blbl.cat3399.core.net.BiliClient
+import blbl.cat3399.core.net.cookieExpiresAt
 import blbl.cat3399.core.ui.FocusTreeUtils
 import blbl.cat3399.databinding.ActivitySettingsBinding
 import blbl.cat3399.core.util.DeviceAbi
@@ -407,6 +408,9 @@ class SettingsRenderer(
     private fun markSupport(supported: Boolean): String = if (supported) "✓" else "✗"
 
     private fun queryHardDecoderSupport(): HardDecoderSupport {
+        if (Build.VERSION.SDK_INT < 21) {
+            return HardDecoderSupport(h264 = false, h265 = false, av1 = false)
+        }
         var h264 = false
         var h265 = false
         var av1 = false
@@ -449,7 +453,7 @@ class SettingsRenderer(
     private fun gaiaVgateStatusText(): String {
         val now = System.currentTimeMillis()
         val tokenCookie = BiliClient.cookies.getCookie("x-bili-gaia-vtoken")
-        val tokenOk = tokenCookie != null && tokenCookie.expiresAt() > now
+        val tokenOk = tokenCookie != null && tokenCookie.cookieExpiresAt() > now
         val voucherOk = !BiliClient.prefs.gaiaVgateVVoucher.isNullOrBlank()
         return when {
             tokenOk -> "已通过"
