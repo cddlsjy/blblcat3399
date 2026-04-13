@@ -472,6 +472,10 @@ class AppPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_TAB_SWITCH_FOLLOWS_FOCUS, true)
         set(value) = prefs.edit().putBoolean(KEY_TAB_SWITCH_FOLLOWS_FOCUS, value).apply()
 
+    var mainAutoHideSidebarOnEnterContent: Boolean
+        get() = prefs.getBoolean(KEY_MAIN_AUTO_HIDE_SIDEBAR_ON_ENTER_CONTENT, false)
+        set(value) = prefs.edit().putBoolean(KEY_MAIN_AUTO_HIDE_SIDEBAR_ON_ENTER_CONTENT, value).apply()
+
     /**
      * Main page (Home/Category/Live/My) "Back" key focus-return scheme.
      *
@@ -910,6 +914,7 @@ class AppPrefs(context: Context) {
         private const val KEY_PLAYER_OPEN_DETAIL_BEFORE_PLAY = "player_open_detail_before_play"
         private const val KEY_FULLSCREEN = "fullscreen_enabled"
         private const val KEY_TAB_SWITCH_FOLLOWS_FOCUS = "tab_switch_follows_focus"
+        private const val KEY_MAIN_AUTO_HIDE_SIDEBAR_ON_ENTER_CONTENT = "main_auto_hide_sidebar_on_enter_content"
         private const val KEY_MAIN_BACK_FOCUS_SCHEME = "main_back_focus_scheme"
         private const val KEY_PLAYER_DEBUG = "player_debug_enabled"
         private const val KEY_PLAYER_DOUBLE_BACK_TO_EXIT = "player_double_back_on_ended"

@@ -804,6 +804,12 @@ class SettingsInteractionHandler(
                 renderer.refreshSection(entry.id)
             }
 
+            SettingId.MainAutoHideSidebarOnEnterContent -> {
+                prefs.mainAutoHideSidebarOnEnterContent = !prefs.mainAutoHideSidebarOnEnterContent
+                AppToast.show(activity, "进入内容区后关闭侧边栏：${if (prefs.mainAutoHideSidebarOnEnterContent) "开" else "关"}")
+                renderer.refreshSection(entry.id)
+            }
+
             SettingId.MainBackFocusScheme -> {
                 val options =
                     listOf(

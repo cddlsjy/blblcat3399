@@ -213,6 +213,12 @@ class SettingsRenderer(
                     SettingEntry(SettingId.FullscreenEnabled, "以全屏模式运行", if (prefs.fullscreenEnabled) "开" else "关", null),
                     SettingEntry(SettingId.TabSwitchFollowsFocus, "tab跟随焦点切换", if (prefs.tabSwitchFollowsFocus) "开" else "关", null),
                     SettingEntry(
+                        SettingId.MainAutoHideSidebarOnEnterContent,
+                        "进入内容区后关闭侧边栏",
+                        if (prefs.mainAutoHideSidebarOnEnterContent) "开" else "关",
+                        "从侧边栏进入内容区后自动收起，返回侧边栏时再展开",
+                    ),
+                    SettingEntry(
                         SettingId.MainBackFocusScheme,
                         "返回键焦点策略",
                         SettingsText.mainBackFocusSchemeText(prefs.mainBackFocusScheme),

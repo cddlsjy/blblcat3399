@@ -28,6 +28,7 @@ enum class SettingId(
     UiScaleFactor("ui_scale_factor"),
     FullscreenEnabled("fullscreen_enabled"),
     TabSwitchFollowsFocus("tab_switch_follows_focus"),
+    MainAutoHideSidebarOnEnterContent("main_auto_hide_sidebar_on_enter_content"),
     MainBackFocusScheme("main_back_focus_scheme"),
     FollowingListOrder("following_list_order"),
 
