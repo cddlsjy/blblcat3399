@@ -664,6 +664,7 @@ class PlayerActivity : BaseActivity() {
         binding = ActivityPlayerBinding.bind(root)
         setContentView(binding.root)
         Immersive.apply(this, prefs.fullscreenEnabled, playerScreen = true)
+        Immersive.setupKeepHidden(this) { BiliClient.prefs.fullscreenEnabled }
         PlayerUiMode.applyVideo(this, binding)
         binding.topBar.setBackgroundResource(R.drawable.bg_player_top_scrim_strong)
         ensureBottomBarConstraintSets()
