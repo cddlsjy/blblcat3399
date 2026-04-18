@@ -800,6 +800,7 @@ class PlayerActivity : BaseActivity() {
                 area = prefs.danmakuArea,
                 laneDensity = DanmakuLaneDensity.fromPrefValue(prefs.danmakuLaneDensity),
                 followBiliShield = prefs.danmakuFollowBiliShield,
+                showHighLikeIcon = prefs.danmakuShowHighLikeIcon,
                 aiShieldEnabled = prefs.danmakuAiShieldEnabled,
                 aiShieldLevel = prefs.danmakuAiShieldLevel,
                 allowScroll = prefs.danmakuAllowScroll,

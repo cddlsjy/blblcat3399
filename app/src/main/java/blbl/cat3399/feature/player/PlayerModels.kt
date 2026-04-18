@@ -167,6 +167,7 @@ internal fun PlayerSessionSettings.toEngineSwitchJsonString(): String {
             put("danmakuSpeedLevel", danmaku.speedLevel)
             put("danmakuArea", danmaku.area.toDouble())
             put("danmakuLaneDensity", danmaku.laneDensity.prefValue)
+            put("danmakuShowHighLikeIcon", danmaku.showHighLikeIcon)
             put("debugEnabled", debugEnabled)
             put("engineKind", engineKind.prefValue)
         }
@@ -228,6 +229,7 @@ internal fun PlayerSessionSettings.restoreFromEngineSwitchJsonString(raw: String
     val danSpeed = optInt("danmakuSpeedLevel", danmaku.speedLevel).coerceIn(1, 10)
     val danArea = optFloat("danmakuArea", danmaku.area).coerceIn(0.05f, 1.0f)
     val danLaneDensity = DanmakuLaneDensity.fromPrefValue(obj.optString("danmakuLaneDensity", danmaku.laneDensity.prefValue))
+    val danShowHighLikeIcon = obj.optBoolean("danmakuShowHighLikeIcon", danmaku.showHighLikeIcon)
     val dbg = obj.optBoolean("debugEnabled", debugEnabled)
     val restoredEngineKind = PlayerEngineKind.fromPrefValue(obj.optString("engineKind", engineKind.prefValue))
 
@@ -256,6 +258,7 @@ internal fun PlayerSessionSettings.restoreFromEngineSwitchJsonString(raw: String
                 speedLevel = danSpeed,
                 area = danArea,
                 laneDensity = danLaneDensity,
+                showHighLikeIcon = danShowHighLikeIcon,
             ),
         debugEnabled = dbg,
         engineKind = restoredEngineKind,

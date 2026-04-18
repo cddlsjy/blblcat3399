@@ -1108,6 +1108,11 @@ class SettingsInteractionHandler(
                 renderer.refreshSection(entry.id)
             }
 
+            SettingId.DanmakuShowHighLikeIcon -> {
+                prefs.danmakuShowHighLikeIcon = !prefs.danmakuShowHighLikeIcon
+                renderer.refreshSection(entry.id)
+            }
+
             SettingId.DanmakuAiShieldEnabled -> {
                 prefs.danmakuAiShieldEnabled = !prefs.danmakuAiShieldEnabled
                 renderer.refreshSection(entry.id)

@@ -389,6 +389,7 @@ class SettingsRenderer(
                     SettingEntry(SettingId.DanmakuLaneDensity, "轨道密度", SettingsText.danmakuLaneDensityText(prefs.danmakuLaneDensity), null),
                     SettingEntry(SettingId.DanmakuSpeed, "弹幕速度", prefs.danmakuSpeed.toString(), null),
                     SettingEntry(SettingId.DanmakuFollowBiliShield, "跟随B站弹幕屏蔽", if (prefs.danmakuFollowBiliShield) "开" else "关", null),
+                    SettingEntry(SettingId.DanmakuShowHighLikeIcon, "显示高赞弹幕图标", if (prefs.danmakuShowHighLikeIcon) "开" else "关", null),
                     SettingEntry(SettingId.DanmakuAiShieldEnabled, "智能云屏蔽", if (prefs.danmakuAiShieldEnabled) "开" else "关", null),
                     SettingEntry(SettingId.DanmakuAiShieldLevel, "智能云屏蔽等级", SettingsText.aiLevelText(prefs.danmakuAiShieldLevel), null),
                     SettingEntry(SettingId.DanmakuAllowScroll, "允许滚动弹幕", if (prefs.danmakuAllowScroll) "开" else "关", null),

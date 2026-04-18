@@ -105,6 +105,7 @@ internal class DanmakuEngine(
             speedLevel = 4,
             area = 1f,
             laneDensity = DanmakuLaneDensity.Standard,
+            showHighLikeIcon = true,
         )
 
     @Volatile private var textSizePx: Float = sp(18f)
@@ -929,6 +930,7 @@ internal class DanmakuEngine(
                 fontWeight = cfg.fontWeight,
                 strokeWidthPx = strokeWidthPx,
                 outlinePadPx = outlinePad,
+                showHighLikeIcon = cfg.showHighLikeIcon,
                 generation = cacheStyleGeneration,
             )
         val releaseAtFrameId = currentUiFrameId + 1
@@ -987,7 +989,7 @@ internal class DanmakuEngine(
 
     private fun inlineImagesReadyOrPrefetch(item: DanmakuItem): Boolean {
         val text = item.data.text
-        if (!item.data.isHighLiked && !text.contains('[')) return true
+        if ((!config.showHighLikeIcon || !item.data.isHighLiked) && !text.contains('[')) return true
         val segments =
             item.inlineSegments
                 ?: run {
@@ -1113,7 +1115,7 @@ internal class DanmakuEngine(
         val width =
             if (text.isBlank()) {
                 outlinePad * 2f
-            } else if (!item.data.isHighLiked && !text.contains('[')) {
+            } else if ((!config.showHighLikeIcon || !item.data.isHighLiked) && !text.contains('[')) {
                 actionPaint.measureText(text) + outlinePad * 2f
             } else {
                 measureTextWidthWithInlineSegments(item = item, paint = actionPaint, outlinePad = outlinePad)
@@ -1129,7 +1131,7 @@ internal class DanmakuEngine(
         val emoteSizePx = (actionFontMetrics.descent - actionFontMetrics.ascent).coerceAtLeast(1f)
 
         var w = 0f
-        if (item.data.isHighLiked) {
+        if (config.showHighLikeIcon && item.data.isHighLiked) {
             w += emoteSizePx + inlineIconGapPx(emoteSizePx)
         }
         if (!text.contains('[')) return w + paint.measureText(text) + outlinePad * 2f
@@ -1166,7 +1168,7 @@ internal class DanmakuEngine(
         var lastTextStart = 0
         var hasInline = false
         val out = ArrayList<DanmakuInlineSegment>(8)
-        if (item.data.isHighLiked) {
+        if (config.showHighLikeIcon && item.data.isHighLiked) {
             out.add(DanmakuInlineSegment.HighLikeIcon)
             hasInline = true
         }

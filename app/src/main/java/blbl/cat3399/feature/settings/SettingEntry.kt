@@ -80,6 +80,7 @@ enum class SettingId(
     DanmakuArea("danmaku_area"),
     DanmakuSpeed("danmaku_speed"),
     DanmakuFollowBiliShield("danmaku_follow_bili_shield"),
+    DanmakuShowHighLikeIcon("danmaku_show_high_like_icon"),
     DanmakuAiShieldEnabled("danmaku_ai_shield_enabled"),
     DanmakuAiShieldLevel("danmaku_ai_shield_level"),
     DanmakuAllowScroll("danmaku_allow_scroll"),
