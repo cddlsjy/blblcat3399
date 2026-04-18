@@ -1,6 +1,5 @@
 package blbl.cat3399.feature.my
 
-import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -24,13 +23,15 @@ import blbl.cat3399.core.ui.setTextSizePxIfChanged
 import blbl.cat3399.core.ui.uiScaler
 import blbl.cat3399.databinding.FragmentMyFavFolderDetailBinding
 import blbl.cat3399.feature.following.openUpDetailFromVideoCard
-import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
 import blbl.cat3399.feature.video.VideoCardActionController
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.feature.video.VideoCardDismissBehavior
 import blbl.cat3399.feature.video.VideoCardVisibilityFilter
-import blbl.cat3399.feature.video.buildVideoCardPlaylistToken
-import blbl.cat3399.feature.video.openVideoDetailFromCards
+import blbl.cat3399.feature.video.buildPagedVideoCardPlaybackHandle
+import blbl.cat3399.feature.video.defaultVideoCardPlaylistItem
+import blbl.cat3399.feature.video.openVideoDetailFromPlaybackHandle
+import blbl.cat3399.feature.video.openVideoFromPlaybackHandle
 import blbl.cat3399.feature.video.removeVideoCardAndRestoreFocus
 import blbl.cat3399.ui.RefreshKeyHandler
 import kotlinx.coroutines.CancellationException
@@ -83,28 +84,12 @@ class MyFavFolderDetailFragment : Fragment(), RefreshKeyHandler {
                 )
             adapter =
                 VideoCardAdapter(
-                    onClick = { card, pos ->
-                        val cards = adapter.snapshot()
-                        if (BiliClient.prefs.playerOpenDetailBeforePlay) {
-                            requireContext().openVideoDetailFromCards(
-                                cards = cards,
-                                position = pos,
-                                source = "MyFavFolderDetail:$mediaId",
-                            )
-                        } else {
-                            val token =
-                                cards.buildVideoCardPlaylistToken(
-                                    index = pos,
-                                    source = "MyFavFolderDetail:$mediaId",
-                                ) ?: return@VideoCardAdapter
-                            startActivity(
-                                Intent(requireContext(), PlayerActivity::class.java)
-                                    .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                                    .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
-                            )
-                        }
+                    onClick = { _, pos ->
+                        requireContext().openVideoFromPlaybackHandle(
+                            playbackHandle = playbackHandle(),
+                            position = pos,
+                            openDetailBeforePlay = BiliClient.prefs.playerOpenDetailBeforePlay,
+                        )
                     },
                     onLongClick = { card, _ ->
                         openUpDetailFromVideoCard(card)
@@ -234,16 +219,18 @@ class MyFavFolderDetailFragment : Fragment(), RefreshKeyHandler {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 var targetPage = page
-                var visibleItems = emptyList<blbl.cat3399.core.model.VideoCard>()
-                var hasMore = false
-                while (true) {
+                var loadedPage: Pair<List<blbl.cat3399.core.model.VideoCard>, Boolean>? = null
+                while (loadedPage == null) {
                     val res = BiliApi.favFolderResources(mediaId = mediaId, pn = targetPage, ps = 20)
                     if (token != requestToken) return@launch
-                    hasMore = res.hasMore
-                    visibleItems = VideoCardVisibilityFilter.filterVisibleFresh(res.items, loadedStableKeys)
+                    val hasMore = res.hasMore
+                    val visibleItems = VideoCardVisibilityFilter.filterVisibleFresh(res.items, loadedStableKeys)
                     targetPage++
-                    if (visibleItems.isNotEmpty() || !hasMore) break
+                    if (visibleItems.isNotEmpty() || !hasMore) {
+                        loadedPage = visibleItems to hasMore
+                    }
                 }
+                val (visibleItems, hasMore) = checkNotNull(loadedPage)
                 if (token != requestToken) return@launch
                 visibleItems.forEach { loadedStableKeys.add(it.stableKey()) }
                 if (isRefresh) adapter.submit(visibleItems) else adapter.append(visibleItems)
@@ -283,12 +270,25 @@ class MyFavFolderDetailFragment : Fragment(), RefreshKeyHandler {
     }
 
     private fun openDetail(position: Int) {
-        requireContext().openVideoDetailFromCards(
-            cards = adapter.snapshot(),
-            position = position,
-            source = "MyFavFolderDetail:$mediaId",
-        )
+        requireContext().openVideoDetailFromPlaybackHandle(playbackHandle(), position)
     }
+
+    private fun playbackHandle() =
+        buildPagedVideoCardPlaybackHandle(
+            source = "MyFavFolderDetail:$mediaId",
+            cardsProvider = adapter::snapshot,
+            nextCursorProvider = { page },
+            hasMoreProvider = { !endReached },
+        ) { targetPage ->
+            val pageNum = targetPage.coerceAtLeast(1)
+            val res = BiliApi.favFolderResources(mediaId = mediaId, pn = pageNum, ps = 20)
+            VideoCardPlaylistPage(
+                cards = res.items,
+                nextCursor = pageNum + 1,
+                hasMore = res.hasMore,
+                canAdvance = res.hasMore && res.items.isNotEmpty(),
+            )
+        }
 
     companion object {
         private const val ARG_MEDIA_ID = "media_id"

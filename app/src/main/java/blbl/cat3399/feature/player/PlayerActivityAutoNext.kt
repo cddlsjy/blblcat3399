@@ -217,7 +217,11 @@ private fun PlayerActivity.resolvePageAutoNextTarget(): AutoNextTarget.Page? {
     val list = pageListItems
     if (list.isEmpty() || pageListIndex !in list.indices) return null
     val nextIndex = pageListIndex + 1
-    val nextItem = list.getOrNull(nextIndex) ?: return null
+    val nextItem = list.getOrNull(nextIndex)
+    if (nextItem == null) {
+        preloadNextPageForPlaylist(PlayerVideoListKind.PAGE)
+        return null
+    }
     if (nextItem.bvid.isBlank() && (nextItem.aid ?: 0L) <= 0L) return null
     return AutoNextTarget.Page(index = nextIndex, rawTitle = nextItem.title)
 }
@@ -226,7 +230,11 @@ private fun PlayerActivity.resolvePartsAutoNextTarget(): AutoNextTarget.Parts? {
     val list = partsListItems
     if (list.isEmpty() || partsListIndex !in list.indices) return null
     val nextIndex = partsListIndex + 1
-    val nextItem = list.getOrNull(nextIndex) ?: return null
+    val nextItem = list.getOrNull(nextIndex)
+    if (nextItem == null) {
+        preloadNextPageForPlaylist(PlayerVideoListKind.PARTS)
+        return null
+    }
     if (nextItem.bvid.isBlank() && (nextItem.aid ?: 0L) <= 0L) return null
     return AutoNextTarget.Parts(index = nextIndex, rawTitle = nextItem.title)
 }

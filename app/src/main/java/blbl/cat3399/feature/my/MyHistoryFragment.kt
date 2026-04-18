@@ -1,6 +1,5 @@
 package blbl.cat3399.feature.my
 
-import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.LayoutInflater
@@ -25,13 +24,15 @@ import blbl.cat3399.core.ui.requestFocusFirstItemOrSelfAfterRefresh
 import blbl.cat3399.databinding.FragmentVideoGridBinding
 import blbl.cat3399.feature.following.openUpDetailFromVideoCard
 import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
 import blbl.cat3399.feature.video.VideoCardActionController
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.feature.video.VideoCardDismissBehavior
 import blbl.cat3399.feature.video.VideoCardVisibilityFilter
-import blbl.cat3399.feature.video.buildVideoCardPlaylistToken
+import blbl.cat3399.feature.video.buildPagedVideoCardPlaybackHandle
 import blbl.cat3399.feature.video.historyVideoCardPlaylistItem
-import blbl.cat3399.feature.video.openVideoDetailFromCards
+import blbl.cat3399.feature.video.openVideoDetailFromPlaybackHandle
+import blbl.cat3399.feature.video.openVideoFromPlaybackHandle
 import blbl.cat3399.feature.video.removeVideoCardAndRestoreFocus
 import blbl.cat3399.ui.RefreshKeyHandler
 import kotlinx.coroutines.CancellationException
@@ -76,42 +77,21 @@ class MyHistoryFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler 
                 )
             adapter =
                 VideoCardAdapter(
-                    onClick = { card, pos ->
-                        val cards = adapter.snapshot()
-                        val canOpenDetail =
-                            BiliClient.prefs.playerOpenDetailBeforePlay &&
-                                card.bvid.isNotBlank() &&
-                                (card.epId == null || card.epId <= 0L)
-                        if (canOpenDetail) {
-                            requireContext().openVideoDetailFromCards(
-                                cards = cards,
-                                position = pos,
-                                source = "MyHistory",
-                                playlistItemFactory = ::historyVideoCardPlaylistItem,
-                            )
-                        } else {
-                            val token =
-                                cards.buildVideoCardPlaylistToken(
-                                    index = pos,
-                                    source = "MyHistory",
-                                    playlistItemFactory = ::historyVideoCardPlaylistItem,
-                                ) ?: return@VideoCardAdapter
-                            startActivity(
-                                Intent(requireContext(), PlayerActivity::class.java)
-                                    .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                                    .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
-                                    .apply { card.epId?.let { putExtra(PlayerActivity.EXTRA_EP_ID, it) } }
-                                    .apply { card.aid?.let { putExtra(PlayerActivity.EXTRA_AID, it) } }
-                                    .apply { card.seasonId?.let { putExtra(PlayerActivity.EXTRA_SEASON_ID, it) } }
-                                    .apply {
-                                        card.progressSec?.takeIf { it >= 5L }?.let { sec ->
-                                            putExtra(PlayerActivity.EXTRA_START_POSITION_MS, sec * 1000L)
-                                        }
-                                    }
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
-                            )
-                        }
+                    onClick = { _, pos ->
+                        requireContext().openVideoFromPlaybackHandle(
+                            playbackHandle = historyPlaybackHandle(),
+                            position = pos,
+                            openDetailBeforePlay = BiliClient.prefs.playerOpenDetailBeforePlay,
+                            canOpenDetail = { it.bvid.isNotBlank() && (it.epId == null || it.epId <= 0L) },
+                            configurePlayerIntent = { card ->
+                                card.epId?.let { putExtra(PlayerActivity.EXTRA_EP_ID, it) }
+                                card.aid?.let { putExtra(PlayerActivity.EXTRA_AID, it) }
+                                card.seasonId?.let { putExtra(PlayerActivity.EXTRA_SEASON_ID, it) }
+                                card.progressSec?.takeIf { it >= 5L }?.let { sec ->
+                                    putExtra(PlayerActivity.EXTRA_START_POSITION_MS, sec * 1000L)
+                                }
+                            },
+                        )
                     },
                     onLongClick = { card, _ ->
                         openUpDetailFromVideoCard(card)
@@ -287,9 +267,8 @@ class MyHistoryFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler 
                         isRefresh = isRefresh,
                         fetch = { cursor ->
                             var c = cursor
-                            var filtered = emptyList<VideoCard>()
-                            var nextCursor: BiliApi.HistoryCursor? = cursor
-                            while (true) {
+                            var fetchedPage: FetchedPage? = null
+                            while (fetchedPage == null) {
                                 val page =
                                     BiliApi.historyCursor(
                                         max = c?.max ?: 0,
@@ -298,13 +277,15 @@ class MyHistoryFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler 
                                         ps = 24,
                                     )
 
-                                nextCursor = page.cursor
-                                filtered = VideoCardVisibilityFilter.filterVisibleFresh(page.items, loadedKeys)
-                                if (filtered.isNotEmpty() || nextCursor == null || nextCursor == c || page.items.isEmpty()) break
-                                if (nextCursor == c) break
-                                c = nextCursor
+                                val nextCursor = page.cursor
+                                val filtered = VideoCardVisibilityFilter.filterVisibleFresh(page.items, loadedKeys)
+                                if (filtered.isNotEmpty() || nextCursor == null || nextCursor == c || page.items.isEmpty()) {
+                                    fetchedPage = FetchedPage(items = filtered, nextCursor = nextCursor)
+                                } else {
+                                    c = nextCursor
+                                }
                             }
-                            FetchedPage(items = filtered, nextCursor = nextCursor)
+                            checkNotNull(fetchedPage)
                         },
                         reduce = { _, fetched ->
                             PagedGridStateMachine.Update(
@@ -371,11 +352,30 @@ class MyHistoryFragment : Fragment(), MyTabSwitchFocusTarget, RefreshKeyHandler 
     }
 
     private fun openDetail(position: Int) {
-        requireContext().openVideoDetailFromCards(
-            cards = adapter.snapshot(),
-            position = position,
-            source = "MyHistory",
-            playlistItemFactory = ::historyVideoCardPlaylistItem,
-        )
+        requireContext().openVideoDetailFromPlaybackHandle(historyPlaybackHandle(), position)
     }
+
+    private fun historyPlaybackHandle() =
+        buildPagedVideoCardPlaybackHandle(
+            source = "MyHistory",
+            cardsProvider = adapter::snapshot,
+            nextCursorProvider = { paging.snapshot().nextKey },
+            hasMoreProvider = { !paging.snapshot().endReached },
+            playlistItemFactory = ::historyVideoCardPlaylistItem,
+        ) { cursor ->
+            val page =
+                BiliApi.historyCursor(
+                    max = cursor?.max ?: 0,
+                    business = cursor?.business,
+                    viewAt = cursor?.viewAt ?: 0,
+                    ps = 24,
+                )
+            val nextCursor = page.cursor
+            VideoCardPlaylistPage(
+                cards = page.items,
+                nextCursor = nextCursor,
+                hasMore = nextCursor != null,
+                canAdvance = nextCursor != null && nextCursor != cursor && page.items.isNotEmpty(),
+            )
+        }
 }

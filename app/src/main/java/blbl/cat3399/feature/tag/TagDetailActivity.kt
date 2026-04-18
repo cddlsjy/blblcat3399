@@ -24,13 +24,14 @@ import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.core.ui.requestFocusFirstItemOrSelfAfterRefresh
 import blbl.cat3399.databinding.ActivityTagDetailBinding
 import blbl.cat3399.feature.following.UpDetailActivity
-import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
 import blbl.cat3399.feature.video.VideoCardActionController
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.feature.video.VideoCardDismissBehavior
 import blbl.cat3399.feature.video.VideoCardVisibilityFilter
-import blbl.cat3399.feature.video.buildVideoCardPlaylistToken
-import blbl.cat3399.feature.video.openVideoDetailFromCards
+import blbl.cat3399.feature.video.buildPagedVideoCardPlaybackHandle
+import blbl.cat3399.feature.video.openVideoDetailFromPlaybackHandle
+import blbl.cat3399.feature.video.openVideoFromPlaybackHandle
 import blbl.cat3399.feature.video.removeVideoCardAndRestoreFocus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -97,28 +98,12 @@ class TagDetailActivity : BaseActivity() {
                 )
             adapter =
                 VideoCardAdapter(
-                    onClick = { card, pos ->
-                        val cards = adapter.snapshot()
-                        if (BiliClient.prefs.playerOpenDetailBeforePlay) {
-                            openVideoDetailFromCards(
-                                cards = cards,
-                                position = pos,
-                                source = "TagDetail:$rid/$tagId",
-                            )
-                        } else {
-                            val token =
-                                cards.buildVideoCardPlaylistToken(
-                                    index = pos,
-                                    source = "TagDetail:$rid/$tagId",
-                                ) ?: return@VideoCardAdapter
-                            startActivity(
-                                Intent(this, PlayerActivity::class.java)
-                                    .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                                    .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
-                            )
-                        }
+                    onClick = { _, pos ->
+                        openVideoFromPlaybackHandle(
+                            playbackHandle = playbackHandle(),
+                            position = pos,
+                            openDetailBeforePlay = BiliClient.prefs.playerOpenDetailBeforePlay,
+                        )
                     },
                     onLongClick = { card, _ ->
                         openUpDetailFromVideoCard(card)
@@ -339,12 +324,28 @@ class TagDetailActivity : BaseActivity() {
     }
 
     private fun openDetail(position: Int) {
-        openVideoDetailFromCards(
-            cards = adapter.snapshot(),
-            position = position,
-            source = "TagDetail:$rid/$tagId",
-        )
+        openVideoDetailFromPlaybackHandle(playbackHandle(), position)
     }
+
+    private fun playbackHandle() =
+        buildPagedVideoCardPlaybackHandle(
+            source = "TagDetail:$rid/$tagId",
+            cardsProvider = adapter::snapshot,
+            nextCursorProvider = { page },
+            hasMoreProvider = { !endReached },
+        ) { targetPage ->
+            val res =
+                when (dataSource) {
+                    DataSource.SEARCH -> fetchSearchPage(page = targetPage)
+                    DataSource.DYNAMIC_TAG -> fetchDynamicTagPage(page = targetPage)
+                }
+            VideoCardPlaylistPage(
+                cards = res.items,
+                nextCursor = targetPage + 1,
+                hasMore = res.hasMore,
+                canAdvance = res.hasMore && res.items.isNotEmpty(),
+            )
+        }
 
     private fun openUpDetailFromVideoCard(card: VideoCard) {
         val mid = card.ownerMid?.takeIf { it > 0L }

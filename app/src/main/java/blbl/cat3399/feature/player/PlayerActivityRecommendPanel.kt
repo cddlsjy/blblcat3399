@@ -137,7 +137,15 @@ internal fun PlayerActivity.initBottomCardPanel() {
                                         return@setOnKeyListener true
                                     }
 
-                            if (pos >= last) return@setOnKeyListener true
+                            if (pos >= last) {
+                                val nextPos = pos + 1
+                                ensurePlaylistIndexLoaded(kind = bottomCardPanelKind, index = nextPos) { available ->
+                                    if (!available) return@ensurePlaylistIndexLoaded
+                                    if (!isBottomCardPanelVisible() || bottomCardPanelKind == PlayerVideoListKind.RECOMMEND) return@ensurePlaylistIndexLoaded
+                                    binding.recyclerRecommend.post { focusBottomPanelPosition(nextPos) }
+                                }
+                                return@setOnKeyListener true
+                            }
                             focusBottomPanelPosition(pos + 1)
                             true
                         }
@@ -261,6 +269,12 @@ internal fun PlayerActivity.hideBottomCardPanel(
             else -> focusFirstControl()
         }
     }
+}
+
+internal fun PlayerActivity.notifyPageListPanelChanged() {
+    if (!isBottomCardPanelVisible()) return
+    if (bottomCardPanelKind != PlayerVideoListKind.PAGE) return
+    refreshBottomCardPanelContent(requestFocus = shouldRequestBottomPanelContentFocusAfterAsyncUpdate(kind = PlayerVideoListKind.PAGE))
 }
 
 internal fun PlayerActivity.notifyPartsListPanelChanged() {

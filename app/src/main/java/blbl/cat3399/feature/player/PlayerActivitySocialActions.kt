@@ -531,12 +531,18 @@ internal fun PlayerActivity.playNext(userInitiated: Boolean) {
         return
     }
     val next = pageListIndex + 1
-    if (next !in list.indices) {
-        if (userInitiated) AppToast.show(this, "无下一个视频，已退出播放器")
-        finish()
+    if (next in list.indices) {
+        playPageListIndex(next)
         return
     }
-    playPageListIndex(next)
+    ensurePlaylistIndexLoaded(kind = PlayerVideoListKind.PAGE, index = next) { available ->
+        if (available) {
+            playPageListIndex(next)
+            return@ensurePlaylistIndexLoaded
+        }
+        if (userInitiated) AppToast.show(this, "无下一个视频，已退出播放器")
+        finish()
+    }
 }
 
 internal fun PlayerActivity.playPrev(userInitiated: Boolean) {
@@ -561,12 +567,18 @@ internal fun PlayerActivity.playPartsNext(userInitiated: Boolean) {
         return
     }
     val next = partsListIndex + 1
-    if (next !in list.indices) {
-        if (userInitiated) AppToast.show(this, "无下一个视频，已退出播放器")
-        finish()
+    if (next in list.indices) {
+        playPartsListIndex(next)
         return
     }
-    playPartsListIndex(next)
+    ensurePlaylistIndexLoaded(kind = PlayerVideoListKind.PARTS, index = next) { available ->
+        if (available) {
+            playPartsListIndex(next)
+            return@ensurePlaylistIndexLoaded
+        }
+        if (userInitiated) AppToast.show(this, "无下一个视频，已退出播放器")
+        finish()
+    }
 }
 
 internal fun PlayerActivity.playPartsNextThenRecommended(userInitiated: Boolean) {
@@ -575,6 +587,16 @@ internal fun PlayerActivity.playPartsNextThenRecommended(userInitiated: Boolean)
         val next = partsListIndex + 1
         if (next in list.indices) {
             playPartsListIndex(next)
+            return
+        }
+        if (hasMorePlaylistItems(PlayerVideoListKind.PARTS)) {
+            ensurePlaylistIndexLoaded(kind = PlayerVideoListKind.PARTS, index = next) { available ->
+                if (available) {
+                    playPartsListIndex(next)
+                } else {
+                    playRecommendedNext(userInitiated = userInitiated)
+                }
+            }
             return
         }
     }

@@ -118,11 +118,15 @@ internal fun PlayerActivity.resetPlaybackStateForNewMedia(
     if (!preservePartsList) {
         partsListFetchJob?.cancel()
         partsListFetchJob = null
+        partsListLoadMoreJob?.cancel()
+        partsListLoadMoreJob = null
+        partsListLoadMoreCallbacks.clear()
         partsListFetchToken++
         partsListSource = null
         partsListItems = emptyList()
         partsListUiCards = emptyList()
         partsListIndex = -1
+        partsListContinuation = null
     }
 
     relatedVideosFetchJob?.cancel()
@@ -535,6 +539,9 @@ internal suspend fun PlayerActivity.refreshPartsListFromView(viewData: JSONObjec
     val safeBvid = bvid.trim()
     val aid = currentAid ?: viewData.optLong("aid").takeIf { it > 0 }
     val cid = currentCid.takeIf { it > 0 }
+    partsListLoadMoreJob?.cancel()
+    partsListLoadMoreJob = null
+    partsListLoadMoreCallbacks.clear()
 
     if (isPgcLikePlayback()) {
         val existing = partsListItems
@@ -550,6 +557,7 @@ internal suspend fun PlayerActivity.refreshPartsListFromView(viewData: JSONObjec
         partsListItems = emptyList()
         partsListUiCards = emptyList()
         partsListIndex = -1
+        partsListContinuation = null
 
         val reused =
             tryApplyPgcPartsListFromBangumiPageList(
@@ -573,6 +581,7 @@ internal suspend fun PlayerActivity.refreshPartsListFromView(viewData: JSONObjec
     partsListItems = emptyList()
     partsListUiCards = emptyList()
     partsListIndex = -1
+    partsListContinuation = null
 
     if (safeBvid.isBlank()) return
 
@@ -586,28 +595,83 @@ internal suspend fun PlayerActivity.refreshPartsListFromView(viewData: JSONObjec
 
     val ugcSeason = viewData.optJSONObject("ugc_season") ?: return
     val seasonId = ugcSeason.optLong("id").takeIf { it > 0 } ?: return
+    val totalFromView = ugcSeason.optInt("ep_count").takeIf { it > 0 }
+    val mid =
+        ugcSeason.optLong("mid").takeIf { it > 0 }
+            ?: viewData.optJSONObject("owner")?.optLong("mid")?.takeIf { it > 0 }
 
     val parsedFromView = parseUgcSeasonPlaylistFromViewWithUiCards(ugcSeason)
     val idxFromView = pickPlaylistIndexForCurrentMedia(parsedFromView.items, bvid = safeBvid, aid = aid, cid = cid)
     if (idxFromView >= 0) {
-        applyPartsList(parsed = parsedFromView, index = idxFromView, source = "UgcSeason")
+        val continuation =
+            mid?.let { ownerMid ->
+                val hasMore = totalFromView?.let { parsedFromView.items.size < it } ?: parsedFromView.items.isNotEmpty()
+                buildUgcSeasonPartsContinuation(
+                    seedCards = parsedFromView.uiCards,
+                    mid = ownerMid,
+                    seasonId = seasonId,
+                    nextPage = 1,
+                    hasMore = hasMore,
+                )
+            }
+        applyPartsList(parsed = parsedFromView, index = idxFromView, source = "UgcSeason", continuation = continuation)
         return
     }
 
-    val mid =
-        ugcSeason.optLong("mid").takeIf { it > 0 }
-            ?: viewData.optJSONObject("owner")?.optLong("mid")?.takeIf { it > 0 }
-            ?: return
+    val safeMid = mid ?: return
 
     val json =
         withContext(Dispatchers.IO) {
-            runCatching { BiliApi.seasonsArchivesList(mid = mid, seasonId = seasonId, pageSize = 200) }.getOrNull()
+            runCatching { BiliApi.seasonsArchivesList(mid = safeMid, seasonId = seasonId, pageSize = 200) }.getOrNull()
         } ?: return
 
     val parsedFromApi = parseUgcSeasonPlaylistFromArchivesListWithUiCards(json)
     val idxFromApi = pickPlaylistIndexForCurrentMedia(parsedFromApi.items, bvid = safeBvid, aid = aid, cid = cid)
     if (idxFromApi >= 0) {
-        applyPartsList(parsed = parsedFromApi, index = idxFromApi, source = "UgcSeason")
+        val totalFromApi = parsePlaylistPageTotalCount(json)
+        val continuation =
+            buildUgcSeasonPartsContinuation(
+                seedCards = parsedFromApi.uiCards,
+                mid = safeMid,
+                seasonId = seasonId,
+                nextPage = 2,
+                hasMore = totalFromApi?.let { parsedFromApi.items.size < it } ?: (parsedFromApi.items.size >= 200),
+            )
+        applyPartsList(parsed = parsedFromApi, index = idxFromApi, source = "UgcSeason", continuation = continuation)
+    }
+}
+
+private fun PlayerActivity.buildUgcSeasonPartsContinuation(
+    seedCards: List<VideoCard>,
+    mid: Long,
+    seasonId: Long,
+    nextPage: Int,
+    hasMore: Boolean,
+): PlayerPlaylistContinuation? {
+    return buildFreshVideoCardPlaylistContinuation(
+        seedCards = seedCards,
+        nextCursor = nextPage.coerceAtLeast(1),
+        hasMore = hasMore,
+        playlistItemFactory = { card ->
+            PlayerPlaylistItem(
+                bvid = card.bvid,
+                cid = card.cid,
+                aid = card.aid,
+                title = card.title,
+            )
+        },
+    ) { pageNum ->
+        val safePageNum = pageNum.coerceAtLeast(1)
+        val json = BiliApi.seasonsArchivesList(mid = mid, seasonId = seasonId, pageNum = safePageNum, pageSize = 200)
+        val parsed = parseUgcSeasonPlaylistFromArchivesListWithUiCards(json)
+        val totalCount = parsePlaylistPageTotalCount(json)
+        val hasNext = totalCount?.let { safePageNum * 200 < it } ?: (parsed.uiCards.size >= 200)
+        VideoCardPlaylistPage(
+            cards = parsed.uiCards,
+            nextCursor = safePageNum + 1,
+            hasMore = hasNext,
+            canAdvance = hasNext && parsed.uiCards.isNotEmpty(),
+        )
     }
 }
 
@@ -834,7 +898,12 @@ private fun bangumiEpToPartsVideoCard(
     )
 }
 
-private fun PlayerActivity.applyPartsList(parsed: PlaylistParsed, index: Int, source: String) {
+private fun PlayerActivity.applyPartsList(
+    parsed: PlaylistParsed,
+    index: Int,
+    source: String,
+    continuation: PlayerPlaylistContinuation? = null,
+) {
     val items = parsed.items
     if (items.isEmpty() || index !in items.indices) return
     val uiCards =
@@ -845,6 +914,7 @@ private fun PlayerActivity.applyPartsList(parsed: PlaylistParsed, index: Int, so
     partsListItems = items
     partsListUiCards = uiCards
     partsListIndex = index
+    partsListContinuation = continuation
 }
 
 internal fun PlayerActivity.handlePlaybackEnded(engine: BlblPlayerEngine) {

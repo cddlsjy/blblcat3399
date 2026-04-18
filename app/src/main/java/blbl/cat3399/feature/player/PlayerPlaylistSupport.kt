@@ -3,6 +3,7 @@ package blbl.cat3399.feature.player
 import blbl.cat3399.core.api.BiliApi
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.model.VideoCard
+import blbl.cat3399.feature.video.VideoCardVisibilityFilter
 import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -11,6 +12,126 @@ internal data class PlaylistParsed(
     val items: List<PlayerPlaylistItem>,
     val uiCards: List<VideoCard>,
 )
+
+internal interface PlayerPlaylistContinuation {
+    val hasMore: Boolean
+
+    suspend fun loadNextPage(): PlaylistParsed
+}
+
+internal data class PlayerPlaylistAppendPage<Cursor>(
+    val cards: List<VideoCard>,
+    val nextCursor: Cursor,
+    val hasMore: Boolean,
+)
+
+internal data class VideoCardPlaylistPage<Cursor>(
+    val cards: List<VideoCard>,
+    val nextCursor: Cursor,
+    val hasMore: Boolean,
+    val canAdvance: Boolean = hasMore,
+)
+
+internal fun <Cursor> buildFreshVideoCardPlaylistContinuation(
+    seedCards: List<VideoCard>,
+    nextCursor: Cursor,
+    hasMore: Boolean,
+    playlistItemFactory: (VideoCard) -> PlayerPlaylistItem,
+    fetchPage: suspend (cursor: Cursor) -> VideoCardPlaylistPage<Cursor>,
+): PlayerPlaylistContinuation? {
+    return buildVideoCardPlaylistContinuation(
+        seedCards = seedCards,
+        nextCursor = nextCursor,
+        hasMore = hasMore,
+        playlistItemFactory = playlistItemFactory,
+    ) { cursor, loadedStableKeys ->
+        loadFreshVideoCardPlaylistPage(
+            cursor = cursor,
+            loadedStableKeys = loadedStableKeys,
+            fetchPage = fetchPage,
+        )
+    }
+}
+
+private suspend fun <Cursor> loadFreshVideoCardPlaylistPage(
+    cursor: Cursor,
+    loadedStableKeys: Set<String>,
+    fetchPage: suspend (cursor: Cursor) -> VideoCardPlaylistPage<Cursor>,
+): PlayerPlaylistAppendPage<Cursor> {
+    var currentCursor = cursor
+    while (true) {
+        val page = fetchPage(currentCursor)
+        val visibleCards = VideoCardVisibilityFilter.filterVisibleFresh(page.cards, loadedStableKeys)
+        if (visibleCards.isNotEmpty() || !page.canAdvance) {
+            return PlayerPlaylistAppendPage(
+                cards = visibleCards,
+                nextCursor = page.nextCursor,
+                hasMore = page.hasMore,
+            )
+        }
+        currentCursor = page.nextCursor
+    }
+}
+
+internal fun <Cursor> buildVideoCardPlaylistContinuation(
+    seedCards: List<VideoCard>,
+    nextCursor: Cursor,
+    hasMore: Boolean,
+    playlistItemFactory: (VideoCard) -> PlayerPlaylistItem,
+    fetchPage: suspend (cursor: Cursor, loadedStableKeys: Set<String>) -> PlayerPlaylistAppendPage<Cursor>,
+): PlayerPlaylistContinuation? {
+    if (!hasMore) return null
+    return VideoCardPlaylistContinuation(
+        nextCursor = nextCursor,
+        hasMore = hasMore,
+        loadedStableKeys = seedCards.mapTo(HashSet(seedCards.size)) { it.stableKey() },
+        playlistItemFactory = playlistItemFactory,
+        fetchPage = fetchPage,
+    )
+}
+
+private class VideoCardPlaylistContinuation<Cursor>(
+    private var nextCursor: Cursor,
+    hasMore: Boolean,
+    private val loadedStableKeys: HashSet<String>,
+    private val playlistItemFactory: (VideoCard) -> PlayerPlaylistItem,
+    private val fetchPage: suspend (cursor: Cursor, loadedStableKeys: Set<String>) -> PlayerPlaylistAppendPage<Cursor>,
+) : PlayerPlaylistContinuation {
+    private var endReached: Boolean = !hasMore
+
+    override val hasMore: Boolean
+        get() = !endReached
+
+    override suspend fun loadNextPage(): PlaylistParsed {
+        if (endReached) return PlaylistParsed(emptyList(), emptyList())
+        val currentCursor = nextCursor
+        val page = fetchPage(currentCursor, loadedStableKeys)
+        nextCursor = page.nextCursor
+        if (!page.hasMore || (page.cards.isEmpty() && page.nextCursor == currentCursor)) {
+            endReached = true
+        }
+        val parsed = parseVideoCardsToPlaylistParsed(page.cards, playlistItemFactory)
+        parsed.uiCards.forEach { loadedStableKeys.add(it.stableKey()) }
+        return parsed
+    }
+}
+
+internal fun parseVideoCardsToPlaylistParsed(
+    cards: List<VideoCard>,
+    playlistItemFactory: (VideoCard) -> PlayerPlaylistItem,
+): PlaylistParsed {
+    if (cards.isEmpty()) return PlaylistParsed(emptyList(), emptyList())
+    val items = ArrayList<PlayerPlaylistItem>(cards.size)
+    val uiCards = ArrayList<VideoCard>(cards.size)
+    for (card in cards) {
+        val item = playlistItemFactory(card)
+        val hasArchiveId = item.bvid.isNotBlank() || (item.aid ?: 0L) > 0L
+        if (!hasArchiveId) continue
+        items.add(item)
+        uiCards.add(card)
+    }
+    return PlaylistParsed(items = items, uiCards = uiCards)
+}
 
 internal fun parseUgcSeasonPlaylistFromViewWithUiCards(ugcSeason: JSONObject): PlaylistParsed {
     val sections = ugcSeason.optJSONArray("sections") ?: return PlaylistParsed(emptyList(), emptyList())
@@ -240,6 +361,10 @@ internal fun parseUgcSeasonPlaylistFromArchivesList(json: JSONObject): List<Play
     return parseUgcSeasonPlaylistFromArchivesListWithUiCards(json).items
 }
 
+internal fun parsePlaylistPageTotalCount(json: JSONObject): Int? {
+    return json.optJSONObject("data")?.optJSONObject("page")?.optInt("total", 0)?.takeIf { it > 0 }
+}
+
 internal fun pickPlaylistIndexForCurrentMedia(list: List<PlayerPlaylistItem>, bvid: String, aid: Long?, cid: Long?): Int {
     val safeBvid = bvid.trim()
     if (cid != null && cid > 0) {
@@ -263,15 +388,16 @@ internal fun isMultiPagePlaylist(list: List<PlayerPlaylistItem>, currentBvid: St
     return list.all { it.bvid == bvid && (it.cid ?: 0L) > 0L }
 }
 
-data class PlayerPlaylist(
-    val items: List<PlayerPlaylistItem>,
-    val uiCards: List<VideoCard>,
+internal data class PlayerPlaylist(
+    var items: List<PlayerPlaylistItem>,
+    var uiCards: List<VideoCard>,
     val source: String?,
     val createdAtMs: Long,
     var index: Int,
+    var continuation: PlayerPlaylistContinuation? = null,
 )
 
-object PlayerPlaylistStore {
+internal object PlayerPlaylistStore {
     private const val MAX_PLAYLISTS = 30
 
     private val store = ConcurrentHashMap<String, PlayerPlaylist>()
@@ -283,6 +409,7 @@ object PlayerPlaylistStore {
         index: Int,
         source: String? = null,
         uiCards: List<VideoCard> = emptyList(),
+        continuation: PlayerPlaylistContinuation? = null,
     ): String {
         val outItems = ArrayList<PlayerPlaylistItem>(items.size)
         val outCards = ArrayList<VideoCard>(items.size)
@@ -333,6 +460,7 @@ object PlayerPlaylistStore {
                 source = source,
                 createdAtMs = System.currentTimeMillis(),
                 index = safeIndex,
+                continuation = continuation,
             )
         store[token] = playlist
         synchronized(lock) {
@@ -355,6 +483,20 @@ object PlayerPlaylistStore {
         if (token.isBlank()) return
         val p = store[token] ?: return
         p.index = index.coerceIn(0, (p.items.size - 1).coerceAtLeast(0))
+    }
+
+    fun sync(
+        token: String,
+        items: List<PlayerPlaylistItem>,
+        uiCards: List<VideoCard>,
+        continuation: PlayerPlaylistContinuation?,
+    ) {
+        if (token.isBlank()) return
+        val p = store[token] ?: return
+        p.items = items
+        p.uiCards = uiCards
+        p.continuation = continuation
+        p.index = p.index.coerceIn(0, (p.items.size - 1).coerceAtLeast(0))
     }
 
     fun remove(token: String) {

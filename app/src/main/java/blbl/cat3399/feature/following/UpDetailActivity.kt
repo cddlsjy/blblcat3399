@@ -31,13 +31,18 @@ import blbl.cat3399.core.ui.postIfAlive
 import blbl.cat3399.core.util.Format
 import blbl.cat3399.databinding.ActivityUpDetailBinding
 import blbl.cat3399.feature.login.QrLoginActivity
-import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.PlayerPlaylistContinuation
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
+import blbl.cat3399.feature.player.buildFreshVideoCardPlaylistContinuation
 import blbl.cat3399.feature.video.VideoCardActionController
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.feature.video.VideoCardDismissBehavior
 import blbl.cat3399.feature.video.VideoCardVisibilityFilter
-import blbl.cat3399.feature.video.buildVideoCardPlaylistToken
-import blbl.cat3399.feature.video.openVideoDetailFromCards
+import blbl.cat3399.feature.video.buildPagedVideoCardPlaybackHandle
+import blbl.cat3399.feature.video.buildVideoCardPlaybackHandle
+import blbl.cat3399.feature.video.defaultVideoCardPlaylistItem
+import blbl.cat3399.feature.video.openVideoDetailFromPlaybackHandle
+import blbl.cat3399.feature.video.openVideoFromPlaybackHandle
 import blbl.cat3399.feature.video.removeVideoCardAndRestoreFocus
 import com.google.android.material.R as MaterialR
 import com.google.android.material.appbar.AppBarLayout
@@ -291,10 +296,9 @@ class UpDetailActivity : BaseActivity() {
                 scope = lifecycleScope,
                 dismissBehavior = VideoCardDismissBehavior.LocalNotInterested,
                 onOpenDetail = { _, pos ->
-                    openDetailFromCards(
-                        cards = archiveAdapter.snapshot(),
-                        index = pos,
-                        source = "UpDetail:$mid:archive",
+                    openVideoDetailFromPlaybackHandle(
+                        playbackHandle = archivePlaybackHandle(),
+                        position = pos,
                     )
                 },
                 onOpenUp = { card -> openUpDetailForCard(card) },
@@ -309,10 +313,10 @@ class UpDetailActivity : BaseActivity() {
         archiveAdapter =
             VideoCardAdapter(
                 onClick = { _, pos ->
-                    openVideoFromCards(
-                        cards = archiveAdapter.snapshot(),
-                        index = pos,
-                        source = "UpDetail:$mid:archive",
+                    openVideoFromPlaybackHandle(
+                        playbackHandle = archivePlaybackHandle(),
+                        position = pos,
+                        openDetailBeforePlay = BiliClient.prefs.playerOpenDetailBeforePlay,
                     )
                 },
                 actionDelegate = archiveActionController,
@@ -321,10 +325,10 @@ class UpDetailActivity : BaseActivity() {
         sectionAdapter =
             UpDetailSectionAdapter(
                 onVideoClick = { section, _, index ->
-                    openVideoFromCards(
-                        cards = section.videos,
-                        index = index,
-                        source = "UpDetail:$mid:${section.stableId}",
+                    openVideoFromPlaybackHandle(
+                        playbackHandle = buildSectionPlaybackHandle(section),
+                        position = index,
+                        openDetailBeforePlay = BiliClient.prefs.playerOpenDetailBeforePlay,
                     )
                 },
                 onRequestLoadMore = { section, requestedNextIndex ->
@@ -1255,42 +1259,78 @@ class UpDetailActivity : BaseActivity() {
         return true
     }
 
-    private fun openVideoFromCards(cards: List<blbl.cat3399.core.model.VideoCard>, index: Int, source: String) {
-        if (cards.isEmpty()) return
-        val pos = index.coerceIn(0, cards.size - 1)
-        val card = cards[pos]
-        if (BiliClient.prefs.playerOpenDetailBeforePlay) {
-            openVideoDetailFromCards(
-                cards = cards,
-                position = pos,
-                source = source,
-            )
-        } else {
-            val token =
-                cards.buildVideoCardPlaylistToken(
-                    index = pos,
-                    source = source,
-                ) ?: return
-            startActivity(
-                Intent(this, PlayerActivity::class.java)
-                    .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                    .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
-                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
-                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
+    private fun archivePlaybackHandle() =
+        buildPagedVideoCardPlaybackHandle(
+            source = "UpDetail:$mid:archive",
+            cardsProvider = archiveAdapter::snapshot,
+            nextCursorProvider = { archiveNextPage },
+            hasMoreProvider = { !archiveEndReached },
+        ) { pageNum ->
+            val targetPage = pageNum.coerceAtLeast(1)
+            val page = BiliApi.spaceArcSearchPage(mid = mid, pn = targetPage, ps = 30)
+            VideoCardPlaylistPage(
+                cards = page.items,
+                nextCursor = targetPage + 1,
+                hasMore = page.hasMore,
+                canAdvance = page.hasMore && page.items.isNotEmpty(),
             )
         }
-    }
 
-    private fun openDetailFromCards(
+    private fun buildSectionPlaybackHandle(section: UpDetailSection) =
+        buildVideoCardPlaybackHandle(
+            source = "UpDetail:$mid:${section.stableId}",
+            cardsProvider = { section.videos },
+        ) { cards ->
+            buildSectionPlaylistContinuation(section, cards)
+        }
+
+    private fun buildSectionPlaylistContinuation(
+        section: UpDetailSection,
         cards: List<blbl.cat3399.core.model.VideoCard>,
-        index: Int,
-        source: String,
-    ) {
-        openVideoDetailFromCards(
-            cards = cards,
-            position = index,
-            source = source,
-        )
+    ): PlayerPlaylistContinuation? {
+        val state = sectionPagingStates[section.stableId] ?: return null
+        val pageSize = if (section.kind == UpDetailSectionKind.SEASON) 30 else 20
+        val ownerFallback = binding.tvName.text?.toString().orEmpty().trim()
+        return buildFreshVideoCardPlaylistContinuation(
+            seedCards = cards,
+            nextCursor = state.nextPage,
+            hasMore = !state.endReached,
+            playlistItemFactory = ::defaultVideoCardPlaylistItem,
+        ) { pageNum ->
+            val safePageNum = pageNum.coerceAtLeast(1)
+            val json =
+                when (section.kind) {
+                    UpDetailSectionKind.SEASON ->
+                        BiliApi.seasonsArchivesList(
+                            mid = mid,
+                            seasonId = section.id,
+                            pageNum = safePageNum,
+                            pageSize = pageSize,
+                            sortReverse = false,
+                        )
+
+                    UpDetailSectionKind.SERIES ->
+                        BiliApi.seriesArchives(
+                            mid = mid,
+                            seriesId = section.id,
+                            pageNum = safePageNum,
+                            pageSize = pageSize,
+                            sort = "desc",
+                            onlyNormal = true,
+                        )
+                }
+            val parsedPage = parseSectionArchivesPage(json, ownerFallback = ownerFallback)
+            val totalCount = parsedPage.totalCount ?: state.totalCount
+            val hasMore =
+                totalCount?.let { safePageNum * pageSize < it }
+                    ?: (parsedPage.videos.size >= pageSize)
+            VideoCardPlaylistPage(
+                cards = parsedPage.videos,
+                nextCursor = safePageNum + 1,
+                hasMore = hasMore,
+                canAdvance = hasMore && parsedPage.videos.isNotEmpty(),
+            )
+        }
     }
 
     private fun openUpDetailForCard(card: blbl.cat3399.core.model.VideoCard) {

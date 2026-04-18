@@ -23,7 +23,7 @@ import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.core.ui.requestFocusFirstItemOrSelfAfterRefresh
 import blbl.cat3399.databinding.ActivityRegionDetailBinding
 import blbl.cat3399.feature.following.UpDetailActivity
-import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -79,28 +79,12 @@ class RegionDetailActivity : BaseActivity() {
                 )
             adapter =
                 VideoCardAdapter(
-                    onClick = { card, pos ->
-                        val cards = adapter.snapshot()
-                        if (BiliClient.prefs.playerOpenDetailBeforePlay) {
-                            openVideoDetailFromCards(
-                                cards = cards,
-                                position = pos,
-                                source = "RegionDetail:$rid",
-                            )
-                        } else {
-                            val token =
-                                cards.buildVideoCardPlaylistToken(
-                                    index = pos,
-                                    source = "RegionDetail:$rid",
-                                ) ?: return@VideoCardAdapter
-                            startActivity(
-                                Intent(this, PlayerActivity::class.java)
-                                    .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                                    .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
-                            )
-                        }
+                    onClick = { _, pos ->
+                        openVideoFromPlaybackHandle(
+                            playbackHandle = playbackHandle(),
+                            position = pos,
+                            openDetailBeforePlay = BiliClient.prefs.playerOpenDetailBeforePlay,
+                        )
                     },
                     onLongClick = { card, _ ->
                         openUpDetailFromVideoCard(card)
@@ -220,16 +204,18 @@ class RegionDetailActivity : BaseActivity() {
         lifecycleScope.launch {
             try {
                 var targetPage = page
-                var visibleItems = emptyList<VideoCard>()
-                var hasMore = false
-                while (true) {
+                var loadedPage: Pair<List<VideoCard>, Boolean>? = null
+                while (loadedPage == null) {
                     val res = BiliApi.regionLatestPage(rid = rid, pn = targetPage, ps = 24)
                     if (token != requestToken) return@launch
-                    hasMore = res.hasMore
-                    visibleItems = VideoCardVisibilityFilter.filterVisibleFresh(res.items, loadedStableKeys)
+                    val hasMore = res.hasMore
+                    val visibleItems = VideoCardVisibilityFilter.filterVisibleFresh(res.items, loadedStableKeys)
                     targetPage++
-                    if (visibleItems.isNotEmpty() || !hasMore || res.items.isEmpty()) break
+                    if (visibleItems.isNotEmpty() || !hasMore || res.items.isEmpty()) {
+                        loadedPage = visibleItems to hasMore
+                    }
                 }
+                val (visibleItems, hasMore) = checkNotNull(loadedPage)
                 if (token != requestToken) return@launch
                 visibleItems.forEach { loadedStableKeys.add(it.stableKey()) }
                 if (isRefresh) adapter.submit(visibleItems) else adapter.append(visibleItems)
@@ -324,12 +310,25 @@ class RegionDetailActivity : BaseActivity() {
     }
 
     private fun openDetail(position: Int) {
-        openVideoDetailFromCards(
-            cards = adapter.snapshot(),
-            position = position,
-            source = "RegionDetail:$rid",
-        )
+        openVideoDetailFromPlaybackHandle(playbackHandle(), position)
     }
+
+    private fun playbackHandle() =
+        buildPagedVideoCardPlaybackHandle(
+            source = "RegionDetail:$rid",
+            cardsProvider = adapter::snapshot,
+            nextCursorProvider = { page },
+            hasMoreProvider = { !endReached },
+        ) { targetPage ->
+            val pageNum = targetPage.coerceAtLeast(1)
+            val res = BiliApi.regionLatestPage(rid = rid, pn = pageNum, ps = 24)
+            VideoCardPlaylistPage(
+                cards = res.items,
+                nextCursor = pageNum + 1,
+                hasMore = res.hasMore,
+                canAdvance = res.hasMore && res.items.isNotEmpty(),
+            )
+        }
 
     companion object {
         const val EXTRA_RID: String = "rid"

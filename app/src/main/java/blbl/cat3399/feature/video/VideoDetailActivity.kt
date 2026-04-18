@@ -35,9 +35,13 @@ import blbl.cat3399.feature.following.UpDetailActivity
 import blbl.cat3399.feature.my.BangumiDetailActivity
 import blbl.cat3399.feature.player.ArchiveTripleActionState
 import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.PlayerPlaylistContinuation
 import blbl.cat3399.feature.player.PlayerPlaylistItem
 import blbl.cat3399.feature.player.PlayerPlaylistStore
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
+import blbl.cat3399.feature.player.buildFreshVideoCardPlaylistContinuation
 import blbl.cat3399.feature.player.executeArchiveTripleAction
+import blbl.cat3399.feature.player.parsePlaylistPageTotalCount
 import blbl.cat3399.feature.player.parseMultiPagePlaylistFromViewWithUiCards
 import blbl.cat3399.feature.player.parseUgcSeasonPlaylistFromArchivesListWithUiCards
 import blbl.cat3399.feature.player.parseUgcSeasonPlaylistFromViewWithUiCards
@@ -87,6 +91,8 @@ class VideoDetailActivity : BaseActivity() {
     private var currentUgcSeasonItems: List<PlayerPlaylistItem> = emptyList()
     private var currentUgcSeasonUiCards: List<blbl.cat3399.core.model.VideoCard> = emptyList()
     private var currentUgcSeasonIndex: Int? = null
+    private var currentUgcSeasonId: Long? = null
+    private var currentUgcSeasonOwnerMid: Long? = null
     private var seasonOrderReversed: Boolean = false
 
     private var actionLiked: Boolean = false
@@ -432,6 +438,10 @@ class VideoDetailActivity : BaseActivity() {
                     currentUgcSeasonItems = emptyList()
                     currentUgcSeasonUiCards = emptyList()
                     currentUgcSeasonIndex = null
+                    currentUgcSeasonId = ugcSeason?.optLong("id")?.takeIf { it > 0L }
+                    currentUgcSeasonOwnerMid =
+                        ugcSeason?.optLong("mid")?.takeIf { it > 0L }
+                            ?: ownerMid
                     if (ugcSeason != null) {
                         val parsedFromView = parseUgcSeasonPlaylistFromViewWithUiCards(ugcSeason)
                         if (parsedFromView.items.isNotEmpty()) {
@@ -640,6 +650,7 @@ class VideoDetailActivity : BaseActivity() {
                 index = index,
                 source = "VideoDetail:ugc_season:$safeBvid",
                 uiCards = currentUgcSeasonUiCards,
+                continuation = buildUgcSeasonPlaylistContinuation(currentUgcSeasonUiCards),
             )
         startActivity(
             Intent(this, PlayerActivity::class.java)
@@ -700,6 +711,31 @@ class VideoDetailActivity : BaseActivity() {
                 smoothScroll = false,
                 isAlive = { !isFinishing && !isDestroyed },
                 onFocused = {},
+            )
+        }
+    }
+
+    private fun buildUgcSeasonPlaylistContinuation(
+        cards: List<blbl.cat3399.core.model.VideoCard>,
+    ): PlayerPlaylistContinuation? {
+        val seasonId = currentUgcSeasonId?.takeIf { it > 0L } ?: return null
+        val mid = currentUgcSeasonOwnerMid?.takeIf { it > 0L } ?: return null
+        return buildFreshVideoCardPlaylistContinuation(
+            seedCards = cards,
+            nextCursor = 1,
+            hasMore = cards.isNotEmpty(),
+            playlistItemFactory = ::defaultVideoCardPlaylistItem,
+        ) { pageNum ->
+            val safePageNum = pageNum.coerceAtLeast(1)
+            val json = BiliApi.seasonsArchivesList(mid = mid, seasonId = seasonId, pageNum = safePageNum, pageSize = 200)
+            val parsed = parseUgcSeasonPlaylistFromArchivesListWithUiCards(json)
+            val totalCount = parsePlaylistPageTotalCount(json)
+            val hasMore = totalCount?.let { safePageNum * 200 < it } ?: (parsed.uiCards.size >= 200)
+            VideoCardPlaylistPage(
+                cards = parsed.uiCards,
+                nextCursor = safePageNum + 1,
+                hasMore = hasMore,
+                canAdvance = hasMore && parsed.uiCards.isNotEmpty(),
             )
         }
     }

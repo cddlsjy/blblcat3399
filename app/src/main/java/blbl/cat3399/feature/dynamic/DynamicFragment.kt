@@ -14,6 +14,7 @@ import blbl.cat3399.R
 import blbl.cat3399.core.api.BiliApi
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.model.Following
+import blbl.cat3399.core.model.VideoCard
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.AppToast
 import blbl.cat3399.core.ui.DpadGridController
@@ -29,13 +30,15 @@ import blbl.cat3399.databinding.FragmentDynamicBinding
 import blbl.cat3399.databinding.FragmentDynamicLoginBinding
 import blbl.cat3399.feature.following.openUpDetailFromVideoCard
 import blbl.cat3399.feature.login.QrLoginActivity
-import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
 import blbl.cat3399.feature.video.VideoCardActionController
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.feature.video.VideoCardDismissBehavior
 import blbl.cat3399.feature.video.VideoCardVisibilityFilter
-import blbl.cat3399.feature.video.buildVideoCardPlaylistToken
-import blbl.cat3399.feature.video.openVideoDetailFromCards
+import blbl.cat3399.feature.video.buildPagedVideoCardPlaybackHandle
+import blbl.cat3399.feature.video.defaultVideoCardPlaylistItem
+import blbl.cat3399.feature.video.openVideoDetailFromPlaybackHandle
+import blbl.cat3399.feature.video.openVideoFromPlaybackHandle
 import blbl.cat3399.feature.video.removeVideoCardAndRestoreFocus
 import blbl.cat3399.ui.BackPressHandler
 import blbl.cat3399.ui.RefreshKeyHandler
@@ -46,6 +49,12 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 class DynamicFragment : Fragment(), RefreshKeyHandler, BackPressHandler {
+    private data class FeedContinuationCursor(
+        val selectedMid: Long,
+        val page: Int,
+        val offset: String?,
+    )
+
     private var _bindingLogin: FragmentDynamicLoginBinding? = null
     private var _binding: FragmentDynamicBinding? = null
 
@@ -163,28 +172,12 @@ class DynamicFragment : Fragment(), RefreshKeyHandler, BackPressHandler {
             )
         videoAdapter =
             VideoCardAdapter(
-                onClick = { card, pos ->
-                    val cards = videoAdapter.snapshot()
-                    if (BiliClient.prefs.playerOpenDetailBeforePlay) {
-                        requireContext().openVideoDetailFromCards(
-                            cards = cards,
-                            position = pos,
-                            source = "Dynamic",
-                        )
-                    } else {
-                        val token =
-                            cards.buildVideoCardPlaylistToken(
-                                index = pos,
-                                source = "Dynamic",
-                            ) ?: return@VideoCardAdapter
-                        startActivity(
-                            Intent(requireContext(), PlayerActivity::class.java)
-                                .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                                .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
-                                .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
-                                .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
-                        )
-                    }
+                onClick = { _, pos ->
+                    requireContext().openVideoFromPlaybackHandle(
+                        playbackHandle = playbackHandle(),
+                        position = pos,
+                        openDetailBeforePlay = BiliClient.prefs.playerOpenDetailBeforePlay,
+                    )
                 },
                 onLongClick = { card, _ ->
                     openUpDetailFromVideoCard(card)
@@ -670,10 +663,46 @@ class DynamicFragment : Fragment(), RefreshKeyHandler, BackPressHandler {
     }
 
     private fun openDetail(position: Int) {
-        requireContext().openVideoDetailFromCards(
-            cards = videoAdapter.snapshot(),
-            position = position,
-            source = "Dynamic",
-        )
+        requireContext().openVideoDetailFromPlaybackHandle(playbackHandle(), position)
     }
+
+    private fun playbackHandle() =
+        buildPagedVideoCardPlaybackHandle(
+            source = "Dynamic",
+            cardsProvider = videoAdapter::snapshot,
+            nextCursorProvider = {
+                FeedContinuationCursor(selectedMid = selectedMid, page = nextPage, offset = nextOffset)
+            },
+            hasMoreProvider = { selectedMid != 0L && !endReached },
+        ) { cursor ->
+            if (cursor.selectedMid == FollowingAdapter.MID_ALL) {
+                val page = BiliApi.dynamicAllVideo(offset = cursor.offset)
+                val nextOffset = page.nextOffset
+                VideoCardPlaylistPage(
+                    cards = page.items,
+                    nextCursor =
+                        FeedContinuationCursor(
+                            selectedMid = cursor.selectedMid,
+                            page = 1,
+                            offset = nextOffset,
+                        ),
+                    hasMore = nextOffset != null,
+                    canAdvance = nextOffset != null && nextOffset != cursor.offset && page.items.isNotEmpty(),
+                )
+            } else {
+                val pageNum = cursor.page.coerceAtLeast(1)
+                val page = BiliApi.spaceArcSearchPage(mid = cursor.selectedMid, pn = pageNum, ps = 30)
+                VideoCardPlaylistPage(
+                    cards = page.items,
+                    nextCursor =
+                        FeedContinuationCursor(
+                            selectedMid = cursor.selectedMid,
+                            page = pageNum + 1,
+                            offset = null,
+                        ),
+                    hasMore = page.hasMore,
+                    canAdvance = page.hasMore && page.items.isNotEmpty(),
+                )
+            }
+        }
 }

@@ -1,6 +1,5 @@
 package blbl.cat3399.feature.custom
 
-import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -28,13 +27,15 @@ import blbl.cat3399.core.ui.requestFocusAdapterPositionReliable
 import blbl.cat3399.core.ui.requestFocusFirstItemOrSelfAfterRefresh
 import blbl.cat3399.databinding.FragmentVideoGridBinding
 import blbl.cat3399.feature.following.openUpDetailFromVideoCard
-import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
 import blbl.cat3399.feature.video.VideoCardActionController
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.feature.video.VideoCardDismissBehavior
 import blbl.cat3399.feature.video.VideoCardVisibilityFilter
-import blbl.cat3399.feature.video.buildVideoCardPlaylistToken
-import blbl.cat3399.feature.video.openVideoDetailFromCards
+import blbl.cat3399.feature.video.buildPagedVideoCardPlaybackHandle
+import blbl.cat3399.feature.video.defaultVideoCardPlaylistItem
+import blbl.cat3399.feature.video.openVideoDetailFromPlaybackHandle
+import blbl.cat3399.feature.video.openVideoFromPlaybackHandle
 import blbl.cat3399.feature.video.removeVideoCardAndRestoreFocus
 import blbl.cat3399.ui.RefreshKeyHandler
 import kotlinx.coroutines.CancellationException
@@ -86,28 +87,12 @@ class CustomDynamicVideoFragment : Fragment(), RefreshKeyHandler, TabSwitchFocus
                 )
             adapter =
                 VideoCardAdapter(
-                    onClick = { card, pos ->
-                        val cards = adapter.snapshot()
-                        if (BiliClient.prefs.playerOpenDetailBeforePlay) {
-                            requireContext().openVideoDetailFromCards(
-                                cards = cards,
-                                position = pos,
-                                source = "CustomDynamic",
-                            )
-                        } else {
-                            val token =
-                                cards.buildVideoCardPlaylistToken(
-                                    index = pos,
-                                    source = "CustomDynamic",
-                                ) ?: return@VideoCardAdapter
-                            startActivity(
-                                Intent(requireContext(), PlayerActivity::class.java)
-                                    .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                                    .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
-                            )
-                        }
+                    onClick = { _, pos ->
+                        requireContext().openVideoFromPlaybackHandle(
+                            playbackHandle = playbackHandle(),
+                            position = pos,
+                            openDetailBeforePlay = BiliClient.prefs.playerOpenDetailBeforePlay,
+                        )
                     },
                     onLongClick = { card, _ ->
                         openUpDetailFromVideoCard(card)
@@ -461,10 +446,23 @@ class CustomDynamicVideoFragment : Fragment(), RefreshKeyHandler, TabSwitchFocus
     }
 
     private fun openDetail(position: Int) {
-        requireContext().openVideoDetailFromCards(
-            cards = adapter.snapshot(),
-            position = position,
-            source = "CustomDynamic",
-        )
+        requireContext().openVideoDetailFromPlaybackHandle(playbackHandle(), position)
     }
+
+    private fun playbackHandle() =
+        buildPagedVideoCardPlaybackHandle(
+            source = "CustomDynamic",
+            cardsProvider = adapter::snapshot,
+            nextCursorProvider = { paging.snapshot().nextKey },
+            hasMoreProvider = { !paging.snapshot().endReached },
+        ) { offset ->
+            val page = BiliApi.dynamicAllVideo(offset = offset)
+            val nextOffset = page.nextOffset
+            VideoCardPlaylistPage(
+                cards = page.items,
+                nextCursor = nextOffset,
+                hasMore = nextOffset != null,
+                canAdvance = nextOffset != null && nextOffset != offset && page.items.isNotEmpty(),
+            )
+        }
 }

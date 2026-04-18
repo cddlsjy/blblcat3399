@@ -248,11 +248,17 @@ class PlayerActivity : BaseActivity() {
     internal var pageListItems: List<PlayerPlaylistItem> = emptyList()
     internal var pageListUiCards: List<VideoCard> = emptyList()
     internal var pageListIndex: Int = -1
+    internal var pageListContinuation: PlayerPlaylistContinuation? = null
+    internal var pageListLoadMoreJob: Job? = null
+    internal val pageListLoadMoreCallbacks = ArrayList<(Boolean) -> Unit>()
 
     internal var partsListSource: String? = null
     internal var partsListItems: List<PlayerPlaylistItem> = emptyList()
     internal var partsListUiCards: List<VideoCard> = emptyList()
     internal var partsListIndex: Int = -1
+    internal var partsListContinuation: PlayerPlaylistContinuation? = null
+    internal var partsListLoadMoreJob: Job? = null
+    internal val partsListLoadMoreCallbacks = ArrayList<(Boolean) -> Unit>()
     internal var partsListFetchJob: kotlinx.coroutines.Job? = null
     internal var partsListFetchToken: Int = 0
     internal lateinit var session: PlayerSessionSettings
@@ -717,6 +723,7 @@ class PlayerActivity : BaseActivity() {
                 pageListUiCards =
                     p.uiCards.takeIf { it.isNotEmpty() && it.size == p.items.size }
                         ?: emptyList()
+                pageListContinuation = p.continuation
                 val idx = pageListIndex.takeIf { it in pageListItems.indices } ?: p.index
                 pageListIndex = idx.coerceIn(0, pageListItems.lastIndex)
                 PlayerPlaylistStore.updateIndex(token, pageListIndex)
@@ -1950,6 +1957,10 @@ class PlayerActivity : BaseActivity() {
         relatedVideosFetchJob?.cancel()
         commentsFetchJob?.cancel()
         commentThreadFetchJob?.cancel()
+        pageListLoadMoreJob?.cancel()
+        partsListLoadMoreJob?.cancel()
+        pageListLoadMoreCallbacks.clear()
+        partsListLoadMoreCallbacks.clear()
         loadJob?.cancel()
         cancelDanmakuLoading(reason = "destroy")
         loadJob = null

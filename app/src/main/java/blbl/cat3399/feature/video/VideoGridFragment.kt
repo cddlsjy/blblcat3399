@@ -1,6 +1,5 @@
 package blbl.cat3399.feature.video
 
-import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.LayoutInflater
@@ -29,7 +28,7 @@ import blbl.cat3399.core.ui.requestFocusAdapterPositionReliable
 import blbl.cat3399.core.ui.requestFocusFirstItemOrSelfAfterRefresh
 import blbl.cat3399.databinding.FragmentVideoGridBinding
 import blbl.cat3399.feature.following.openUpDetailFromVideoCard
-import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
 import blbl.cat3399.ui.RefreshKeyHandler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -95,27 +94,11 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
                 VideoCardAdapter(
                     onClick = { card, pos ->
                         AppLog.i("VideoGrid", "click bvid=${card.bvid} cid=${card.cid}")
-                        val cards = adapter.snapshot()
-                        if (BiliClient.prefs.playerOpenDetailBeforePlay) {
-                            requireContext().openVideoDetailFromCards(
-                                cards = cards,
-                                position = pos,
-                                source = "VideoGrid:$source/$rid",
-                            )
-                        } else {
-                            val token =
-                                cards.buildVideoCardPlaylistToken(
-                                    index = pos,
-                                    source = "VideoGrid:$source/$rid",
-                                ) ?: return@VideoCardAdapter
-                            startActivity(
-                                Intent(requireContext(), PlayerActivity::class.java)
-                                    .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                                    .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
-                            )
-                        }
+                        requireContext().openVideoFromPlaybackHandle(
+                            playbackHandle = playbackHandle(),
+                            position = pos,
+                            openDetailBeforePlay = BiliClient.prefs.playerOpenDetailBeforePlay,
+                        )
                     },
                     onLongClick = { card, _ ->
                         openUpDetailFromVideoCard(card)
@@ -257,7 +240,7 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
                     paging.loadNextPage(
                         isRefresh = isRefresh,
                         fetch = ::fetchVisiblePage,
-                        reduce = { key, fetched ->
+                        reduce = { _, fetched ->
                             PagedGridStateMachine.Update(
                                 items = fetched.items,
                                 nextKey = fetched.nextKey,
@@ -546,12 +529,24 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
     }
 
     private fun openDetail(position: Int) {
-        requireContext().openVideoDetailFromCards(
-            cards = adapter.snapshot(),
-            position = position,
-            source = "VideoGrid:$source/$rid",
-        )
+        requireContext().openVideoDetailFromPlaybackHandle(playbackHandle(), position)
     }
+
+    private fun playbackHandle() =
+        buildPagedVideoCardPlaybackHandle(
+            source = "VideoGrid:$source/$rid",
+            cardsProvider = adapter::snapshot,
+            nextCursorProvider = { paging.snapshot().nextKey },
+            hasMoreProvider = { !paging.snapshot().endReached },
+        ) { key ->
+            val page = fetchRawPage(key, ps = 24)
+            VideoCardPlaylistPage(
+                cards = page.items,
+                nextCursor = page.nextKey,
+                hasMore = page.hasMore,
+                canAdvance = page.hasMore && page.nextKey != key && page.items.isNotEmpty(),
+            )
+        }
 
     companion object {
         private const val ARG_SOURCE = "source"

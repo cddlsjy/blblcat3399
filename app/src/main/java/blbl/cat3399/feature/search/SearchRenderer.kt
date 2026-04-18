@@ -37,12 +37,13 @@ import blbl.cat3399.feature.following.openUpDetailFromVideoCard
 import blbl.cat3399.feature.live.LivePlayerActivity
 import blbl.cat3399.feature.live.LiveRoomAdapter
 import blbl.cat3399.feature.my.BangumiFollowAdapter
-import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
 import blbl.cat3399.feature.video.VideoCardActionController
 import blbl.cat3399.feature.video.VideoCardAdapter
 import blbl.cat3399.feature.video.VideoCardDismissBehavior
-import blbl.cat3399.feature.video.buildVideoCardPlaylistToken
-import blbl.cat3399.feature.video.openVideoDetailFromCards
+import blbl.cat3399.feature.video.buildPagedVideoCardPlaybackHandle
+import blbl.cat3399.feature.video.openVideoDetailFromPlaybackHandle
+import blbl.cat3399.feature.video.openVideoFromPlaybackHandle
 import blbl.cat3399.feature.video.removeVideoCardAndRestoreFocus
 import com.google.android.material.card.MaterialCardView
 
@@ -156,28 +157,12 @@ class SearchRenderer(
             )
         videoAdapter =
             VideoCardAdapter(
-                onClick = { card, pos ->
-                    val cards = videoAdapter.snapshot()
-                    if (BiliClient.prefs.playerOpenDetailBeforePlay) {
-                        viewContext.openVideoDetailFromCards(
-                            cards = cards,
-                            position = pos,
-                            source = "Search",
-                        )
-                    } else {
-                        val token =
-                            cards.buildVideoCardPlaylistToken(
-                                index = pos,
-                                source = "Search",
-                            ) ?: return@VideoCardAdapter
-                        fragment.startActivity(
-                            Intent(viewContext, PlayerActivity::class.java)
-                                .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                                .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
-                                .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
-                                .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
-                        )
-                    }
+                onClick = { _, pos ->
+                    viewContext.openVideoFromPlaybackHandle(
+                        playbackHandle = videoPlaybackHandle(),
+                        position = pos,
+                        openDetailBeforePlay = BiliClient.prefs.playerOpenDetailBeforePlay,
+                    )
                 },
                 onLongClick = { card, _ ->
                     fragment.openUpDetailFromVideoCard(card)
@@ -620,12 +605,27 @@ class SearchRenderer(
     }
 
     private fun openDetail(position: Int) {
-        viewContext.openVideoDetailFromCards(
-            cards = videoAdapter.snapshot(),
-            position = position,
-            source = "Search",
-        )
+        viewContext.openVideoDetailFromPlaybackHandle(videoPlaybackHandle(), position)
     }
+
+    private fun videoPlaybackHandle() =
+        buildPagedVideoCardPlaybackHandle(
+            source = "Search",
+            cardsProvider = videoAdapter::snapshot,
+            nextCursorProvider = { state.videoPaging.snapshot().nextKey },
+            hasMoreProvider = { !state.videoPaging.snapshot().endReached },
+        ) { page ->
+            val keyword = state.query.trim()
+            val order = state.currentVideoOrder.apiValue
+            val res = blbl.cat3399.core.api.BiliApi.searchVideo(keyword = keyword, page = page, order = order)
+            val hasNextPage = res.pages > 0 && page < res.pages
+            VideoCardPlaylistPage(
+                cards = res.items,
+                nextCursor = page + 1,
+                hasMore = hasNextPage,
+                canAdvance = hasNextPage && res.items.isNotEmpty(),
+            )
+        }
 
     fun onShown() {
         // When SearchFragment is hidden via FragmentTransaction.hide(), it stays resumed.
