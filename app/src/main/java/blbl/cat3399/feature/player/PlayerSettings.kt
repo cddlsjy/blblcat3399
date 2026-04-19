@@ -503,7 +503,7 @@ private fun PlayerActivity.buildRootSettingsItems(
         settingItem(
             PlayerSettingKeys.PERSISTENT_CLOCK,
             "常驻时间显示",
-            prefs.playerPersistentClockEnabled.switchText(),
+            BiliClient.prefs.playerPersistentClockEnabled.switchText(),
         ),
         settingItem(PlayerSettingKeys.PLAYER_ENGINE, "播放器内核", playerEngineSubtitle()),
         settingItem(PlayerSettingKeys.DEBUG_INFO, "调试信息", session.debugEnabled.switchText()),
