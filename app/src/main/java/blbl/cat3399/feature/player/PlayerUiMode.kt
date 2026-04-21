@@ -1,9 +1,13 @@
 package blbl.cat3399.feature.player
 
 import android.app.Activity
+import android.content.Context
+import android.graphics.drawable.Drawable
 import android.util.TypedValue
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
+import androidx.appcompat.view.ContextThemeWrapper
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import blbl.cat3399.R
@@ -12,6 +16,7 @@ import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.ui.BackButtonSizingHelper
 import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.core.ui.uiScaler
+import blbl.cat3399.core.ui.userScaledContext
 import blbl.cat3399.databinding.ActivityPlayerBinding
 import blbl.cat3399.feature.video.VideoCardAdapter
 import kotlin.math.abs
@@ -22,59 +27,15 @@ object PlayerOsdSizing {
         activity.theme.applyStyle(R.style.ThemeOverlay_Blbl_PlayerOsd_Normal, true)
     }
 
-    fun applyToViews(activity: Activity, binding: ActivityPlayerBinding, scale: Float = 1.0f) {
-        val s = scale.takeIf { it.isFinite() && it > 0f } ?: 1.0f
-        fun scaled(v: Int): Int = (v * s).roundToInt()
-
-        val targetSize = scaled(activity.themeDimenPx(R.attr.playerOsdButtonTargetSize)).coerceAtLeast(1)
-        val padTransport = scaled(activity.themeDimenPx(R.attr.playerOsdPadTransport)).coerceAtLeast(0)
-        val padNormal = scaled(activity.themeDimenPx(R.attr.playerOsdPadNormal)).coerceAtLeast(0)
-        val padSmall = scaled(activity.themeDimenPx(R.attr.playerOsdPadSmall)).coerceAtLeast(0)
-        val gap = scaled(activity.themeDimenPx(R.attr.playerOsdGap)).coerceAtLeast(0)
-
-        listOf(binding.btnPrev, binding.btnPlayPause, binding.btnNext).forEach { btn ->
-            setSize(btn, targetSize, targetSize)
-            btn.setPadding(padTransport, padTransport, padTransport, padTransport)
-            setEndMargin(btn, gap)
-        }
-        listOf(binding.btnSubtitle, binding.btnDanmaku, binding.btnComments, binding.btnUp).forEach { btn ->
-            setSize(btn, targetSize, targetSize)
-            btn.setPadding(padNormal, padNormal, padNormal, padNormal)
-            setEndMargin(btn, gap)
-        }
-        listOf(binding.btnLike, binding.btnCoin, binding.btnFav, binding.btnListPanel).forEach { btn ->
-            setSize(btn, targetSize, targetSize)
-            btn.setPadding(padSmall, padSmall, padSmall, padSmall)
-            setEndMargin(btn, gap)
-        }
-        run {
-            val btn = binding.btnAdvanced
-            setSize(btn, targetSize, targetSize)
-            btn.setPadding(padSmall, padSmall, padSmall, padSmall)
-            setEndMargin(btn, 0)
-        }
+    fun inflationContext(activity: Activity): Context {
+        return ContextThemeWrapper(
+            activity.userScaledContext(),
+            R.style.ThemeOverlay_Blbl_PlayerOsd_Normal,
+        )
     }
 
-    private fun Activity.themeDimenPx(attr: Int): Int {
-        val out = TypedValue()
-        if (!theme.resolveAttribute(attr, out, true)) return 0
-        return if (out.resourceId != 0) resources.getDimensionPixelSize(out.resourceId)
-        else TypedValue.complexToDimensionPixelSize(out.data, resources.displayMetrics)
-    }
-
-    private fun setSize(view: View, widthPx: Int, heightPx: Int) {
-        val lp = view.layoutParams ?: return
-        if (lp.width == widthPx && lp.height == heightPx) return
-        lp.width = widthPx
-        lp.height = heightPx
-        view.layoutParams = lp
-    }
-
-    private fun setEndMargin(view: View, marginEndPx: Int) {
-        val lp = view.layoutParams as? MarginLayoutParams ?: return
-        if (lp.marginEnd == marginEndPx) return
-        lp.marginEnd = marginEndPx
-        view.layoutParams = lp
+    fun cloneInflater(activity: Activity, baseInflater: LayoutInflater): LayoutInflater {
+        return baseInflater.cloneInContext(inflationContext(activity))
     }
 }
 
@@ -156,12 +117,13 @@ internal object PlayerUiMode {
 
     fun applyVideo(activity: Activity, binding: ActivityPlayerBinding) {
         val uiScale = UiScale.factor(activity).takeIf { it.isFinite() && it > 0f } ?: 1.0f
-        val scaler = activity.uiScaler(uiScale)
+        val scaler = binding.root.context.uiScaler(uiScale)
+        val viewScale = scaler.scale
         fun scaledPx(id: Int): Int = scaler.scaledDimenPx(id)
         fun scaledPxF(id: Int): Float = scaler.scaledDimenPxF(id)
 
-        applyBottomListPanelSizing(binding = binding, scale = uiScale)
-        applySidePanelsSizing(binding = binding, scale = uiScale)
+        applyBottomListPanelSizing(binding = binding, viewScale = viewScale, userScale = uiScale)
+        applySidePanelsSizing(binding = binding, scale = viewScale)
 
         run {
             val prefSize = BiliClient.prefs.playerVideoShotPreviewSize
@@ -360,10 +322,7 @@ internal object PlayerUiMode {
         }
         run {
             binding.progressSeekOsd.progressDrawable = ContextCompat.getDrawable(activity, R.drawable.progress_player_seek_osd)
-            val seekThumb =
-                binding.seekProgress.thumb?.constantState?.newDrawable(activity.resources)?.mutate()
-                    ?: ContextCompat.getDrawable(activity, R.drawable.seekbar_player_thumb)
-            binding.progressSeekOsd.setThumbDrawable(seekThumb)
+            binding.progressSeekOsd.setThumbDrawable(cloneSeekThumbDrawable(binding))
             val trackHeight = scaledPx(R.dimen.player_seek_osd_progress_height).coerceAtLeast(1)
             binding.progressSeekOsd.setTrackHeightPx(trackHeight)
             binding.progressSeekOsd.setTrackVerticalOffsetPx(
@@ -382,9 +341,6 @@ internal object PlayerUiMode {
                 binding.controlsRow.layoutParams = lp
             }
         }
-
-        PlayerOsdSizing.applyToViews(activity, binding, scale = uiScale)
-
         binding.tvTime.setTextSize(
             TypedValue.COMPLEX_UNIT_PX,
             scaledPxF(R.dimen.player_time_text_size),
@@ -439,11 +395,12 @@ internal object PlayerUiMode {
 
     fun applyLive(activity: Activity, binding: ActivityPlayerBinding) {
         val uiScale = UiScale.factor(activity).takeIf { it.isFinite() && it > 0f } ?: 1.0f
-        val scaler = activity.uiScaler(uiScale)
+        val scaler = binding.root.context.uiScaler(uiScale)
+        val viewScale = scaler.scale
         fun scaledPx(id: Int): Int = scaler.scaledDimenPx(id)
         fun scaledPxF(id: Int): Float = scaler.scaledDimenPxF(id)
 
-        applySidePanelsSizing(binding = binding, scale = uiScale)
+        applySidePanelsSizing(binding = binding, scale = viewScale)
 
         val topPadH = scaledPx(blbl.cat3399.R.dimen.player_top_bar_padding_h)
         val topPadV = scaledPx(blbl.cat3399.R.dimen.player_top_bar_padding_v)
@@ -543,9 +500,6 @@ internal object PlayerUiMode {
                 binding.controlsRow.layoutParams = lp
             }
         }
-
-        PlayerOsdSizing.applyToViews(activity, binding, scale = uiScale)
-
         binding.tvTime.setTextSize(
             TypedValue.COMPLEX_UNIT_PX,
             scaledPxF(blbl.cat3399.R.dimen.player_time_text_size),
@@ -606,8 +560,12 @@ internal object PlayerUiMode {
         }
     }
 
-    private fun applyBottomListPanelSizing(binding: ActivityPlayerBinding, scale: Float) {
-        val s = scale.takeIf { it.isFinite() && it > 0f } ?: 1.0f
+    private fun applyBottomListPanelSizing(
+        binding: ActivityPlayerBinding,
+        viewScale: Float,
+        userScale: Float,
+    ) {
+        val s = viewScale.takeIf { it.isFinite() && it > 0f } ?: 1.0f
 
         val state =
             (binding.recommendPanel.getTag(R.id.tag_player_list_panel_base_metrics) as? ListPanelSizingState)
@@ -660,7 +618,7 @@ internal object PlayerUiMode {
             // When user increases UI scale, give the panel more vertical space; otherwise cards become
             // height-constrained and can overlap.
             val basePercent = LIST_PANEL_GUIDELINE_TOP_PERCENT_BASE
-            val newPercent = scaledListPanelGuidelinePercent(basePercent = basePercent, userScale = s)
+            val newPercent = scaledListPanelGuidelinePercent(basePercent = basePercent, userScale = userScale)
             val lp = binding.guidelineListPanelTop.layoutParams as? ConstraintLayout.LayoutParams
             if (lp != null && lp.guidePercent != newPercent) {
                 lp.guidePercent = newPercent
@@ -911,5 +869,15 @@ internal object PlayerUiMode {
         lp.width = widthPx
         lp.height = heightPx
         view.layoutParams = lp
+    }
+
+    private fun cloneSeekThumbDrawable(binding: ActivityPlayerBinding): Drawable? {
+        val context = binding.root.context
+        val resources = context.resources
+        binding.seekProgress.thumb?.constantState?.newDrawable(resources)?.mutate()?.let { return it }
+        return ContextCompat.getDrawable(context, R.drawable.seekbar_player_thumb)
+            ?.constantState
+            ?.newDrawable(resources)
+            ?.mutate()
     }
 }

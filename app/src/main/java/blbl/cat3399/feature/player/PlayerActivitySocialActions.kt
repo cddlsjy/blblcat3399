@@ -52,6 +52,7 @@ internal fun PlayerActivity.updateActionButtonsUi() {
     updateLikeButtonUi()
     updateCoinButtonUi()
     updateFavButtonUi()
+    updatePlayerInfoActionUi()
 }
 
 internal fun PlayerActivity.updateLikeButtonUi() {
@@ -171,6 +172,10 @@ internal fun PlayerActivity.onLikeButtonClicked(showControls: Boolean = true) {
                 updateLikeButtonUi()
                 BiliApi.archiveLike(bvid = requestBvid, aid = currentAid, like = targetLike)
                 if (currentBvid != requestBvid) return@launch
+                currentPlayerLikeCount =
+                    currentPlayerLikeCount?.let { count ->
+                        if (targetLike) count + 1 else (count - 1).coerceAtLeast(0L)
+                    }
                 actionLiked = targetLike
                 AppToast.show(this@onLikeButtonClicked, if (targetLike) "点赞成功" else "已取消赞")
             } catch (t: Throwable) {
@@ -204,6 +209,7 @@ internal fun PlayerActivity.onCoinButtonClicked(showControls: Boolean = true) {
                 updateCoinButtonUi()
                 BiliApi.coinAdd(bvid = requestBvid, aid = currentAid, multiply = 1, selectLike = false)
                 if (currentBvid != requestBvid) return@launch
+                currentPlayerCoinCount = currentPlayerCoinCount?.let { it + 1L }
                 actionCoinCount = (actionCoinCount + 1).coerceAtMost(2)
                 AppToast.show(this@onCoinButtonClicked, "投币成功")
             } catch (t: Throwable) {
@@ -317,7 +323,13 @@ internal fun PlayerActivity.applyFavSelection(
             try {
                 updateFavButtonUi()
                 BiliApi.favResourceDeal(rid = rid, addMediaIds = add, delMediaIds = del)
+                val wasFavored = actionFavored
                 actionFavored = selected.isNotEmpty()
+                if (!wasFavored && actionFavored) {
+                    currentPlayerFavCount = currentPlayerFavCount?.let { it + 1L }
+                } else if (wasFavored && !actionFavored) {
+                    currentPlayerFavCount = currentPlayerFavCount?.let { (it - 1L).coerceAtLeast(0L) }
+                }
                 updateFavButtonUi()
                 AppToast.show(this@applyFavSelection, "收藏已更新")
             } catch (t: Throwable) {
@@ -452,6 +464,7 @@ internal fun PlayerActivity.playRecommendedNext(userInitiated: Boolean) {
                 if (currentBvid.trim() != requestBvid) return@launch
 
                 relatedVideosCache = PlayerActivity.RelatedVideosCache(bvid = requestBvid, items = list)
+                refreshPlayerInfoPanelContent()
                 val picked = pickRecommendedVideo(list, excludeBvid = requestBvid)
                 if (picked == null) {
                     if (userInitiated) AppToast.show(this@playRecommendedNext, "暂无推荐视频")
@@ -519,12 +532,18 @@ internal fun PlayerActivity.playNext(userInitiated: Boolean) {
         return
     }
     val next = pageListIndex + 1
-    if (next !in list.indices) {
-        if (userInitiated) AppToast.show(this, "无下一个视频，已退出播放器")
-        finish()
+    if (next in list.indices) {
+        playPageListIndex(next)
         return
     }
-    playPageListIndex(next)
+    ensurePlaylistIndexLoaded(kind = PlayerVideoListKind.PAGE, index = next) { available ->
+        if (available) {
+            playPageListIndex(next)
+            return@ensurePlaylistIndexLoaded
+        }
+        if (userInitiated) AppToast.show(this, "无下一个视频，已退出播放器")
+        finish()
+    }
 }
 
 internal fun PlayerActivity.playPrev(userInitiated: Boolean) {
@@ -549,12 +568,18 @@ internal fun PlayerActivity.playPartsNext(userInitiated: Boolean) {
         return
     }
     val next = partsListIndex + 1
-    if (next !in list.indices) {
-        if (userInitiated) AppToast.show(this, "无下一个视频，已退出播放器")
-        finish()
+    if (next in list.indices) {
+        playPartsListIndex(next)
         return
     }
-    playPartsListIndex(next)
+    ensurePlaylistIndexLoaded(kind = PlayerVideoListKind.PARTS, index = next) { available ->
+        if (available) {
+            playPartsListIndex(next)
+            return@ensurePlaylistIndexLoaded
+        }
+        if (userInitiated) AppToast.show(this, "无下一个视频，已退出播放器")
+        finish()
+    }
 }
 
 internal fun PlayerActivity.playPartsNextThenRecommended(userInitiated: Boolean) {
@@ -563,6 +588,16 @@ internal fun PlayerActivity.playPartsNextThenRecommended(userInitiated: Boolean)
         val next = partsListIndex + 1
         if (next in list.indices) {
             playPartsListIndex(next)
+            return
+        }
+        if (hasMorePlaylistItems(PlayerVideoListKind.PARTS)) {
+            ensurePlaylistIndexLoaded(kind = PlayerVideoListKind.PARTS, index = next) { available ->
+                if (available) {
+                    playPartsListIndex(next)
+                } else {
+                    playRecommendedNext(userInitiated = userInitiated)
+                }
+            }
             return
         }
     }

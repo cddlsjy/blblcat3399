@@ -24,11 +24,15 @@ import blbl.cat3399.core.ui.cloneInUserScale
 import blbl.cat3399.core.ui.requestFocusFirstItemOrSelfAfterRefresh
 import blbl.cat3399.databinding.ActivityTagDetailBinding
 import blbl.cat3399.feature.following.UpDetailActivity
-import blbl.cat3399.feature.player.PlayerActivity
-import blbl.cat3399.feature.player.PlayerPlaylistItem
-import blbl.cat3399.feature.player.PlayerPlaylistStore
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
+import blbl.cat3399.feature.video.VideoCardActionController
 import blbl.cat3399.feature.video.VideoCardAdapter
-import blbl.cat3399.feature.video.VideoDetailActivity
+import blbl.cat3399.feature.video.VideoCardDismissBehavior
+import blbl.cat3399.feature.video.VideoCardVisibilityFilter
+import blbl.cat3399.feature.video.buildPagedVideoCardPlaybackHandle
+import blbl.cat3399.feature.video.openVideoDetailFromPlaybackHandle
+import blbl.cat3399.feature.video.openVideoFromPlaybackHandle
+import blbl.cat3399.feature.video.removeVideoCardAndRestoreFocus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -46,7 +50,7 @@ class TagDetailActivity : BaseActivity() {
 
     private var dataSource: DataSource = DataSource.DYNAMIC_TAG
 
-    private val loadedBvids = HashSet<String>()
+    private val loadedStableKeys = HashSet<String>()
     private var isLoadingMore: Boolean = false
     private var endReached: Boolean = false
     private var page: Int = 1
@@ -77,55 +81,35 @@ class TagDetailActivity : BaseActivity() {
         binding.tvTitle.text = tagName.ifBlank { "标签" }
 
         if (!this::adapter.isInitialized) {
+            val actionController =
+                VideoCardActionController(
+                    context = this,
+                    scope = lifecycleScope,
+                    dismissBehavior = VideoCardDismissBehavior.LocalNotInterested,
+                    onOpenDetail = { _, pos -> openDetail(pos) },
+                    onOpenUp = { card -> openUpDetailFromVideoCard(card) },
+                    onCardRemoved = { stableKey ->
+                        binding.recycler.removeVideoCardAndRestoreFocus(
+                            adapter = adapter,
+                            stableKey = stableKey,
+                            isAlive = { !isFinishing && !isDestroyed },
+                        )
+                    },
+                )
             adapter =
                 VideoCardAdapter(
-                    onClick = { card, pos ->
-                        val cards = adapter.snapshot()
-                        val playlistItems =
-                            cards.map {
-                                PlayerPlaylistItem(
-                                    bvid = it.bvid,
-                                    cid = it.cid,
-                                    title = it.title,
-                                )
-                            }
-                        val token =
-                            PlayerPlaylistStore.put(
-                                items = playlistItems,
-                                index = pos,
-                                source = "TagDetail:$rid/$tagId",
-                                uiCards = cards,
-                            )
-                        if (BiliClient.prefs.playerOpenDetailBeforePlay) {
-                            startActivity(
-                                Intent(this, VideoDetailActivity::class.java)
-                                    .putExtra(VideoDetailActivity.EXTRA_BVID, card.bvid)
-                                    .putExtra(VideoDetailActivity.EXTRA_CID, card.cid ?: -1L)
-                                    .apply { card.aid?.let { putExtra(VideoDetailActivity.EXTRA_AID, it) } }
-                                    .putExtra(VideoDetailActivity.EXTRA_TITLE, card.title)
-                                    .putExtra(VideoDetailActivity.EXTRA_COVER_URL, card.coverUrl)
-                                    .apply {
-                                        card.ownerName.takeIf { it.isNotBlank() }?.let { putExtra(VideoDetailActivity.EXTRA_OWNER_NAME, it) }
-                                        card.ownerFace?.takeIf { it.isNotBlank() }?.let { putExtra(VideoDetailActivity.EXTRA_OWNER_AVATAR, it) }
-                                        card.ownerMid?.takeIf { it > 0L }?.let { putExtra(VideoDetailActivity.EXTRA_OWNER_MID, it) }
-                                    }
-                                    .putExtra(VideoDetailActivity.EXTRA_PLAYLIST_TOKEN, token)
-                                    .putExtra(VideoDetailActivity.EXTRA_PLAYLIST_INDEX, pos),
-                            )
-                        } else {
-                            startActivity(
-                                Intent(this, PlayerActivity::class.java)
-                                    .putExtra(PlayerActivity.EXTRA_BVID, card.bvid)
-                                    .putExtra(PlayerActivity.EXTRA_CID, card.cid ?: -1L)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_TOKEN, token)
-                                    .putExtra(PlayerActivity.EXTRA_PLAYLIST_INDEX, pos),
-                            )
-                        }
+                    onClick = { _, pos ->
+                        openVideoFromPlaybackHandle(
+                            playbackHandle = playbackHandle(),
+                            position = pos,
+                            openDetailBeforePlay = BiliClient.prefs.playerOpenDetailBeforePlay,
+                        )
                     },
                     onLongClick = { card, _ ->
                         openUpDetailFromVideoCard(card)
                         true
                     },
+                    actionDelegate = actionController,
                 )
         }
 
@@ -219,7 +203,7 @@ class TagDetailActivity : BaseActivity() {
     private fun resetAndLoad() {
         pendingFocusFirstItem = true
         dpadGridController?.parkFocusForDataSetReset()
-        loadedBvids.clear()
+        loadedStableKeys.clear()
         isLoadingMore = false
         endReached = false
         page = 1
@@ -257,14 +241,15 @@ class TagDetailActivity : BaseActivity() {
                     if (fallbackToSearch(token = token, isRefresh = isRefresh, startAt = startAt, reason = "empty")) return@launch
                 }
 
-                val filtered = res.items.filter { loadedBvids.add(it.bvid) }
-                if (isRefresh) adapter.submit(filtered) else adapter.append(filtered)
+                val visibleItems = VideoCardVisibilityFilter.filterVisibleFresh(res.items, loadedStableKeys)
+                visibleItems.forEach { loadedStableKeys.add(it.stableKey()) }
+                if (isRefresh) adapter.submit(visibleItems) else adapter.append(visibleItems)
                 maybeFocusFirstItem()
                 if (!res.hasMore || res.items.isEmpty()) endReached = true
                 page++
                 AppLog.i(
                     "TagDetail",
-                    "load ok src=$dataSource rid=$rid tagId=$tagId add=${filtered.size} total=${adapter.itemCount} hasMore=${res.hasMore} cost=${SystemClock.uptimeMillis() - startAt}ms",
+                    "load ok src=$dataSource rid=$rid tagId=$tagId add=${visibleItems.size} total=${adapter.itemCount} hasMore=${res.hasMore} cost=${SystemClock.uptimeMillis() - startAt}ms",
                 )
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
@@ -292,19 +277,20 @@ class TagDetailActivity : BaseActivity() {
         if (keyword.isBlank()) return false
 
         dataSource = DataSource.SEARCH
-        loadedBvids.clear()
+        loadedStableKeys.clear()
         endReached = false
         page = 1
         val search = fetchSearchPage(page = 1)
         if (token != requestToken) return true
-        val filtered = search.items.filter { loadedBvids.add(it.bvid) }
-        if (isRefresh) adapter.submit(filtered) else adapter.append(filtered)
+        val visibleItems = VideoCardVisibilityFilter.filterVisibleFresh(search.items, loadedStableKeys)
+        visibleItems.forEach { loadedStableKeys.add(it.stableKey()) }
+        if (isRefresh) adapter.submit(visibleItems) else adapter.append(visibleItems)
         maybeFocusFirstItem()
         if (!search.hasMore || search.items.isEmpty()) endReached = true
         page = 2
         AppLog.i(
             "TagDetail",
-            "load ok fallbackToSearch reason=$reason rid=$rid tagId=$tagId keyword=${keyword.take(20)} add=${filtered.size} total=${adapter.itemCount} hasMore=${search.hasMore} cost=${SystemClock.uptimeMillis() - startAt}ms",
+            "load ok fallbackToSearch reason=$reason rid=$rid tagId=$tagId keyword=${keyword.take(20)} add=${visibleItems.size} total=${adapter.itemCount} hasMore=${search.hasMore} cost=${SystemClock.uptimeMillis() - startAt}ms",
         )
         return true
     }
@@ -336,6 +322,30 @@ class TagDetailActivity : BaseActivity() {
             onDone = { pendingFocusFirstItem = false },
         )
     }
+
+    private fun openDetail(position: Int) {
+        openVideoDetailFromPlaybackHandle(playbackHandle(), position)
+    }
+
+    private fun playbackHandle() =
+        buildPagedVideoCardPlaybackHandle(
+            source = "TagDetail:$rid/$tagId",
+            cardsProvider = adapter::snapshot,
+            nextCursorProvider = { page },
+            hasMoreProvider = { !endReached },
+        ) { targetPage ->
+            val res =
+                when (dataSource) {
+                    DataSource.SEARCH -> fetchSearchPage(page = targetPage)
+                    DataSource.DYNAMIC_TAG -> fetchDynamicTagPage(page = targetPage)
+                }
+            VideoCardPlaylistPage(
+                cards = res.items,
+                nextCursor = targetPage + 1,
+                hasMore = res.hasMore,
+                canAdvance = res.hasMore && res.items.isNotEmpty(),
+            )
+        }
 
     private fun openUpDetailFromVideoCard(card: VideoCard) {
         val mid = card.ownerMid?.takeIf { it > 0L }

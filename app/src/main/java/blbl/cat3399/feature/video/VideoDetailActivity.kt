@@ -25,6 +25,7 @@ import blbl.cat3399.core.ui.GridSpanPolicy
 import blbl.cat3399.core.ui.Immersive
 import blbl.cat3399.core.ui.ThemeColor
 import blbl.cat3399.core.ui.cloneInUserScale
+import blbl.cat3399.core.ui.requestFocusAdapterPositionReliable
 import blbl.cat3399.core.ui.smoothScrollToPositionStart
 import blbl.cat3399.core.util.parseBangumiRedirectUrl
 import blbl.cat3399.core.util.Format
@@ -34,9 +35,13 @@ import blbl.cat3399.feature.following.UpDetailActivity
 import blbl.cat3399.feature.my.BangumiDetailActivity
 import blbl.cat3399.feature.player.ArchiveTripleActionState
 import blbl.cat3399.feature.player.PlayerActivity
+import blbl.cat3399.feature.player.PlayerPlaylistContinuation
 import blbl.cat3399.feature.player.PlayerPlaylistItem
 import blbl.cat3399.feature.player.PlayerPlaylistStore
+import blbl.cat3399.feature.player.VideoCardPlaylistPage
+import blbl.cat3399.feature.player.buildFreshVideoCardPlaylistContinuation
 import blbl.cat3399.feature.player.executeArchiveTripleAction
+import blbl.cat3399.feature.player.parsePlaylistPageTotalCount
 import blbl.cat3399.feature.player.parseMultiPagePlaylistFromViewWithUiCards
 import blbl.cat3399.feature.player.parseUgcSeasonPlaylistFromArchivesListWithUiCards
 import blbl.cat3399.feature.player.parseUgcSeasonPlaylistFromViewWithUiCards
@@ -86,6 +91,8 @@ class VideoDetailActivity : BaseActivity() {
     private var currentUgcSeasonItems: List<PlayerPlaylistItem> = emptyList()
     private var currentUgcSeasonUiCards: List<blbl.cat3399.core.model.VideoCard> = emptyList()
     private var currentUgcSeasonIndex: Int? = null
+    private var currentUgcSeasonId: Long? = null
+    private var currentUgcSeasonOwnerMid: Long? = null
     private var seasonOrderReversed: Boolean = false
 
     private var actionLiked: Boolean = false
@@ -231,21 +238,20 @@ class VideoDetailActivity : BaseActivity() {
 
         recommendAdapter =
             VideoCardAdapter(
-                onClick = { card, _ ->
+                onClick = { card, pos ->
                     val nextBvid = card.bvid.trim()
                     if (nextBvid.isBlank()) return@VideoCardAdapter
-                    startActivity(
-                        Intent(this, VideoDetailActivity::class.java)
-                            .putExtra(EXTRA_BVID, nextBvid)
-                            .putExtra(EXTRA_TITLE, card.title)
-                            .putExtra(EXTRA_COVER_URL, card.coverUrl)
-                            .apply {
-                                card.ownerName.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_OWNER_NAME, it) }
-                                card.ownerFace?.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_OWNER_AVATAR, it) }
-                                card.ownerMid?.takeIf { it > 0L }?.let { putExtra(EXTRA_OWNER_MID, it) }
-                            },
-                    )
+                    openRecommendDetail(pos)
                 },
+                actionDelegate =
+                    VideoCardActionController(
+                        context = this,
+                        scope = lifecycleScope,
+                        dismissBehavior = VideoCardDismissBehavior.LocalNotInterested,
+                        onOpenDetail = { _, pos -> openRecommendDetail(pos) },
+                        onOpenUp = { card -> openUpDetailForCard(card) },
+                        onCardRemoved = { stableKey -> removeRecommendCardAndRestoreFocus(stableKey) },
+                    ),
             )
 
         concatAdapter =
@@ -432,6 +438,10 @@ class VideoDetailActivity : BaseActivity() {
                     currentUgcSeasonItems = emptyList()
                     currentUgcSeasonUiCards = emptyList()
                     currentUgcSeasonIndex = null
+                    currentUgcSeasonId = ugcSeason?.optLong("id")?.takeIf { it > 0L }
+                    currentUgcSeasonOwnerMid =
+                        ugcSeason?.optLong("mid")?.takeIf { it > 0L }
+                            ?: ownerMid
                     if (ugcSeason != null) {
                         val parsedFromView = parseUgcSeasonPlaylistFromViewWithUiCards(ugcSeason)
                         if (parsedFromView.items.isNotEmpty()) {
@@ -640,6 +650,7 @@ class VideoDetailActivity : BaseActivity() {
                 index = index,
                 source = "VideoDetail:ugc_season:$safeBvid",
                 uiCards = currentUgcSeasonUiCards,
+                continuation = buildUgcSeasonPlaylistContinuation(currentUgcSeasonUiCards),
             )
         startActivity(
             Intent(this, PlayerActivity::class.java)
@@ -665,6 +676,68 @@ class VideoDetailActivity : BaseActivity() {
                     ownerAvatar?.takeIf { it.isNotBlank() }?.let { putExtra(UpDetailActivity.EXTRA_AVATAR, it) }
                 },
         )
+    }
+
+    private fun openRecommendDetail(position: Int) {
+        openVideoDetailFromCards(
+            cards = recommendAdapter.snapshot(),
+            position = position,
+            source = "VideoDetail:$bvid:recommend",
+        )
+    }
+
+    private fun openUpDetailForCard(card: blbl.cat3399.core.model.VideoCard) {
+        val targetMid = card.ownerMid?.takeIf { it > 0L } ?: return
+        startActivity(
+            Intent(this, UpDetailActivity::class.java)
+                .putExtra(UpDetailActivity.EXTRA_MID, targetMid)
+                .apply {
+                    card.ownerName.takeIf { it.isNotBlank() }?.let { putExtra(UpDetailActivity.EXTRA_NAME, it) }
+                    card.ownerFace?.takeIf { it.isNotBlank() }?.let { putExtra(UpDetailActivity.EXTRA_AVATAR, it) }
+                },
+        )
+    }
+
+    private fun removeRecommendCardAndRestoreFocus(stableKey: String) {
+        val removedIndex = recommendAdapter.removeByStableKey(stableKey)
+        if (removedIndex < 0) return
+        binding.recycler.post {
+            if (recommendAdapter.itemCount <= 0) {
+                headerAdapter.requestFocusPlay()
+                return@post
+            }
+            binding.recycler.requestFocusAdapterPositionReliable(
+                position = 1 + removedIndex.coerceIn(0, recommendAdapter.itemCount - 1),
+                smoothScroll = false,
+                isAlive = { !isFinishing && !isDestroyed },
+                onFocused = {},
+            )
+        }
+    }
+
+    private fun buildUgcSeasonPlaylistContinuation(
+        cards: List<blbl.cat3399.core.model.VideoCard>,
+    ): PlayerPlaylistContinuation? {
+        val seasonId = currentUgcSeasonId?.takeIf { it > 0L } ?: return null
+        val mid = currentUgcSeasonOwnerMid?.takeIf { it > 0L } ?: return null
+        return buildFreshVideoCardPlaylistContinuation(
+            seedCards = cards,
+            nextCursor = 1,
+            hasMore = cards.isNotEmpty(),
+            playlistItemFactory = ::defaultVideoCardPlaylistItem,
+        ) { pageNum ->
+            val safePageNum = pageNum.coerceAtLeast(1)
+            val json = BiliApi.seasonsArchivesList(mid = mid, seasonId = seasonId, pageNum = safePageNum, pageSize = 200)
+            val parsed = parseUgcSeasonPlaylistFromArchivesListWithUiCards(json)
+            val totalCount = parsePlaylistPageTotalCount(json)
+            val hasMore = totalCount?.let { safePageNum * 200 < it } ?: (parsed.uiCards.size >= 200)
+            VideoCardPlaylistPage(
+                cards = parsed.uiCards,
+                nextCursor = safePageNum + 1,
+                hasMore = hasMore,
+                canAdvance = hasMore && parsed.uiCards.isNotEmpty(),
+            )
+        }
     }
 
     private fun onVideoTagClick(tag: VideoTag) {

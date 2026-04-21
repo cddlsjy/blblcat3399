@@ -69,6 +69,10 @@ internal fun PlayerActivity.resetPlaybackStateForNewMedia(
     session = session.copy(actualAudioId = 0)
     currentViewDurationMs = null
     debug.reset()
+    clearKeySeekPending()
+    cancelDeferredKeySeekPreview()
+    holdScrubPreviewPosMs = null
+    scrubbing = false
     resetBufferingOverlayState()
     subtitleAvailabilityKnown = false
     subtitleAvailable = false
@@ -114,17 +118,22 @@ internal fun PlayerActivity.resetPlaybackStateForNewMedia(
     if (!preservePartsList) {
         partsListFetchJob?.cancel()
         partsListFetchJob = null
+        partsListLoadMoreJob?.cancel()
+        partsListLoadMoreJob = null
+        partsListLoadMoreCallbacks.clear()
         partsListFetchToken++
         partsListSource = null
         partsListItems = emptyList()
         partsListUiCards = emptyList()
         partsListIndex = -1
+        partsListContinuation = null
     }
 
     relatedVideosFetchJob?.cancel()
     relatedVideosFetchJob = null
     relatedVideosFetchToken++
     relatedVideosCache = null
+    resetPlayerInfoPanelState()
 
     commentsFetchJob?.cancel()
     commentsFetchJob = null
@@ -157,7 +166,9 @@ internal fun PlayerActivity.resetPlaybackStateForNewMedia(
 
     binding.settingsPanel.visibility = View.GONE
     binding.commentsPanel.visibility = View.GONE
-    hideBottomCardPanel(restoreFocus = false)
+    binding.playerInfoPanel.visibility = View.GONE
+    hideBottomCardPanel(restoreFocus = false, dismissTarget = null)
+    menuRevealedPanelSessionActive = false
     binding.recyclerComments.visibility = View.VISIBLE
     binding.recyclerCommentThread.visibility = View.GONE
     binding.rowCommentSort.visibility = View.VISIBLE
@@ -236,6 +247,7 @@ internal fun PlayerActivity.startPlayback(
         seasonIdExtra?.takeIf { it > 0L }
             ?: parseBangumiSeasonIdFromSource(pageListSource)
     currentCid = -1L
+    currentVideoIsPortrait = null
 
     trace =
         PlayerActivity.PlaybackTrace(
@@ -315,6 +327,7 @@ internal fun PlayerActivity.startPlayback(
                 currentViewDurationMs = viewData.optLong("duration", -1L).takeIf { it > 0 }?.times(1000L)
                 applyUpInfo(viewData)
                 applyTitleMeta(viewData)
+                applyPlayerInfoViewData(viewData)
 
                 val resolvedBvid =
                     viewData.optString("bvid", "").trim().takeIf { it.isNotBlank() }
@@ -338,6 +351,8 @@ internal fun PlayerActivity.startPlayback(
                     updatePageListIndexForCurrentMedia(bvid = resolvedBvid, aid = currentAid, cid = cid)
                 }
                 updatePlaylistControls()
+                refreshPlayerInfoPanelContent()
+                syncPlayerInfoPanelVisibility()
 
                 requestOnlineWatchingText(bvid = resolvedBvid, cid = cid)
                 applyPerVideoPreferredQn(viewData, cid = cid)
@@ -411,6 +426,7 @@ internal fun PlayerActivity.startPlayback(
                 showRiskControlBypassHintIfNeeded(playJson)
                 lastAvailableQns = parseDashVideoQnList(playJson)
                 lastAvailableAudioIds = parseDashAudioIdList(playJson, constraints = playbackConstraints)
+                logPlayUrlTrackSummary(source = "start", playJson = playJson, constraints = playbackConstraints)
                 if (subtitleSupported) {
                     trace?.log("subtitle:await")
                     subtitleConfig = subJob?.await()
@@ -442,10 +458,7 @@ internal fun PlayerActivity.startPlayback(
                         }
                         lastPickedDash = playable
                         debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
-                        AppLog.i(
-                            "Player",
-                            "picked DASH qn=${playable.qn} codecid=${playable.codecid} dv=${playable.isDolbyVision} a=${playable.audioKind}(${playable.audioId}) video=${playable.videoUrl}",
-                        )
+                        logPickedPlayable(source = "start", playable = playable)
                         engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
                         applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
                         applyAudioFallbackIfNeeded(requestedAudioId = session.targetAudioId, actualAudioId = playable.audioId)
@@ -456,10 +469,7 @@ internal fun PlayerActivity.startPlayback(
                         session = session.copy(actualAudioId = 0)
                         (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
                         debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
-                        AppLog.i(
-                            "Player",
-                            "picked VideoOnly qn=${playable.qn} codecid=${playable.codecid} dv=${playable.isDolbyVision} video=${playable.videoUrl}",
-                        )
+                        logPickedPlayable(source = "start", playable = playable)
                         engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
                         applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
                     }
@@ -469,7 +479,7 @@ internal fun PlayerActivity.startPlayback(
                         session = session.copy(actualAudioId = 0)
                         (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
                         debug.cdnHost = runCatching { Uri.parse(playable.url).host }.getOrNull()
-                        AppLog.i("Player", "picked Progressive url=${playable.url}")
+                        logPickedPlayable(source = "start", playable = playable)
                         engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
                     }
                 }
@@ -529,6 +539,9 @@ internal suspend fun PlayerActivity.refreshPartsListFromView(viewData: JSONObjec
     val safeBvid = bvid.trim()
     val aid = currentAid ?: viewData.optLong("aid").takeIf { it > 0 }
     val cid = currentCid.takeIf { it > 0 }
+    partsListLoadMoreJob?.cancel()
+    partsListLoadMoreJob = null
+    partsListLoadMoreCallbacks.clear()
 
     if (isPgcLikePlayback()) {
         val existing = partsListItems
@@ -544,6 +557,7 @@ internal suspend fun PlayerActivity.refreshPartsListFromView(viewData: JSONObjec
         partsListItems = emptyList()
         partsListUiCards = emptyList()
         partsListIndex = -1
+        partsListContinuation = null
 
         val reused =
             tryApplyPgcPartsListFromBangumiPageList(
@@ -567,6 +581,7 @@ internal suspend fun PlayerActivity.refreshPartsListFromView(viewData: JSONObjec
     partsListItems = emptyList()
     partsListUiCards = emptyList()
     partsListIndex = -1
+    partsListContinuation = null
 
     if (safeBvid.isBlank()) return
 
@@ -580,28 +595,83 @@ internal suspend fun PlayerActivity.refreshPartsListFromView(viewData: JSONObjec
 
     val ugcSeason = viewData.optJSONObject("ugc_season") ?: return
     val seasonId = ugcSeason.optLong("id").takeIf { it > 0 } ?: return
+    val totalFromView = ugcSeason.optInt("ep_count").takeIf { it > 0 }
+    val mid =
+        ugcSeason.optLong("mid").takeIf { it > 0 }
+            ?: viewData.optJSONObject("owner")?.optLong("mid")?.takeIf { it > 0 }
 
     val parsedFromView = parseUgcSeasonPlaylistFromViewWithUiCards(ugcSeason)
     val idxFromView = pickPlaylistIndexForCurrentMedia(parsedFromView.items, bvid = safeBvid, aid = aid, cid = cid)
     if (idxFromView >= 0) {
-        applyPartsList(parsed = parsedFromView, index = idxFromView, source = "UgcSeason")
+        val continuation =
+            mid?.let { ownerMid ->
+                val hasMore = totalFromView?.let { parsedFromView.items.size < it } ?: parsedFromView.items.isNotEmpty()
+                buildUgcSeasonPartsContinuation(
+                    seedCards = parsedFromView.uiCards,
+                    mid = ownerMid,
+                    seasonId = seasonId,
+                    nextPage = 1,
+                    hasMore = hasMore,
+                )
+            }
+        applyPartsList(parsed = parsedFromView, index = idxFromView, source = "UgcSeason", continuation = continuation)
         return
     }
 
-    val mid =
-        ugcSeason.optLong("mid").takeIf { it > 0 }
-            ?: viewData.optJSONObject("owner")?.optLong("mid")?.takeIf { it > 0 }
-            ?: return
+    val safeMid = mid ?: return
 
     val json =
         withContext(Dispatchers.IO) {
-            runCatching { BiliApi.seasonsArchivesList(mid = mid, seasonId = seasonId, pageSize = 200) }.getOrNull()
+            runCatching { BiliApi.seasonsArchivesList(mid = safeMid, seasonId = seasonId, pageSize = 200) }.getOrNull()
         } ?: return
 
     val parsedFromApi = parseUgcSeasonPlaylistFromArchivesListWithUiCards(json)
     val idxFromApi = pickPlaylistIndexForCurrentMedia(parsedFromApi.items, bvid = safeBvid, aid = aid, cid = cid)
     if (idxFromApi >= 0) {
-        applyPartsList(parsed = parsedFromApi, index = idxFromApi, source = "UgcSeason")
+        val totalFromApi = parsePlaylistPageTotalCount(json)
+        val continuation =
+            buildUgcSeasonPartsContinuation(
+                seedCards = parsedFromApi.uiCards,
+                mid = safeMid,
+                seasonId = seasonId,
+                nextPage = 2,
+                hasMore = totalFromApi?.let { parsedFromApi.items.size < it } ?: (parsedFromApi.items.size >= 200),
+            )
+        applyPartsList(parsed = parsedFromApi, index = idxFromApi, source = "UgcSeason", continuation = continuation)
+    }
+}
+
+private fun PlayerActivity.buildUgcSeasonPartsContinuation(
+    seedCards: List<VideoCard>,
+    mid: Long,
+    seasonId: Long,
+    nextPage: Int,
+    hasMore: Boolean,
+): PlayerPlaylistContinuation? {
+    return buildFreshVideoCardPlaylistContinuation(
+        seedCards = seedCards,
+        nextCursor = nextPage.coerceAtLeast(1),
+        hasMore = hasMore,
+        playlistItemFactory = { card ->
+            PlayerPlaylistItem(
+                bvid = card.bvid,
+                cid = card.cid,
+                aid = card.aid,
+                title = card.title,
+            )
+        },
+    ) { pageNum ->
+        val safePageNum = pageNum.coerceAtLeast(1)
+        val json = BiliApi.seasonsArchivesList(mid = mid, seasonId = seasonId, pageNum = safePageNum, pageSize = 200)
+        val parsed = parseUgcSeasonPlaylistFromArchivesListWithUiCards(json)
+        val totalCount = parsePlaylistPageTotalCount(json)
+        val hasNext = totalCount?.let { safePageNum * 200 < it } ?: (parsed.uiCards.size >= 200)
+        VideoCardPlaylistPage(
+            cards = parsed.uiCards,
+            nextCursor = safePageNum + 1,
+            hasMore = hasNext,
+            canAdvance = hasNext && parsed.uiCards.isNotEmpty(),
+        )
     }
 }
 
@@ -828,7 +898,12 @@ private fun bangumiEpToPartsVideoCard(
     )
 }
 
-private fun PlayerActivity.applyPartsList(parsed: PlaylistParsed, index: Int, source: String) {
+private fun PlayerActivity.applyPartsList(
+    parsed: PlaylistParsed,
+    index: Int,
+    source: String,
+    continuation: PlayerPlaylistContinuation? = null,
+) {
     val items = parsed.items
     if (items.isEmpty() || index !in items.indices) return
     val uiCards =
@@ -839,6 +914,7 @@ private fun PlayerActivity.applyPartsList(parsed: PlaylistParsed, index: Int, so
     partsListItems = items
     partsListUiCards = uiCards
     partsListIndex = index
+    partsListContinuation = continuation
 }
 
 internal fun PlayerActivity.handlePlaybackEnded(engine: BlblPlayerEngine) {
@@ -868,7 +944,7 @@ internal fun PlayerActivity.handlePlaybackEnded(engine: BlblPlayerEngine) {
             }
 
             // When any OSD/panels are visible, do NOT auto-next and do NOT show the hint.
-            // We only show "即将播放 ..." + start the 2s countdown after the UI is fully closed.
+            // We only show "即将播放 ..." and start the auto-next countdown window after the UI is fully closed.
             if (isAutoNextUiBlocked()) {
                 armAutoNextAfterEnded(reason = "ended_ui_blocked")
                 pauseAutoNextAfterEnded(reason = "ended_ui_blocked")
@@ -877,7 +953,7 @@ internal fun PlayerActivity.handlePlaybackEnded(engine: BlblPlayerEngine) {
             }
 
             // If the hint was already shown during playback, keep the old behavior: transition immediately.
-            // Otherwise, show it now and delay by 2 seconds so BACK can cancel.
+            // Otherwise, show it now and delay by the auto-next countdown window so BACK can cancel.
             if (autoNextHintVisible) {
                 val target = autoNextPending ?: resolveAutoNextTargetByPlaybackMode(preloadRecommendation = false)
                 if (target != null) {
@@ -923,6 +999,7 @@ internal fun PlayerActivity.applyPerVideoPreferredQn(viewData: JSONObject, cid: 
         }
 
     val isPortraitVideo = (effectiveW > 0 && effectiveH > 0 && effectiveH > effectiveW)
+    currentVideoIsPortrait = isPortraitVideo
     val preferredQn = if (isPortraitVideo) prefs.playerPreferredQnPortrait else prefs.playerPreferredQn
     if (session.preferredQn != preferredQn) {
         session = session.copy(preferredQn = preferredQn)

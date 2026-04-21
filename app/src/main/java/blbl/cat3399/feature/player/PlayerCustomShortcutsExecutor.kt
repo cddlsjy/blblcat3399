@@ -1,16 +1,15 @@
 package blbl.cat3399.feature.player
 
 import android.view.KeyEvent
-import androidx.lifecycle.lifecycleScope
 import blbl.cat3399.core.net.BiliClient
+import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.prefs.PlayerCustomShortcutAction
-import blbl.cat3399.core.prefs.PlayerPlaybackModes
 import blbl.cat3399.core.prefs.PlayerCustomShortcutsStore
+import blbl.cat3399.core.prefs.PlayerPlaybackModes
 import blbl.cat3399.feature.player.engine.ExoPlayerEngine
 import java.util.Locale
 import java.util.WeakHashMap
 import kotlin.math.abs
-import kotlinx.coroutines.launch
 
 private class PlayerCustomShortcutToggleMemory {
     val playbackSpeedPrevByKey = HashMap<Int, Float>()
@@ -41,6 +40,11 @@ private fun audioIdHintText(id: Int): String = if (id > 0) audioLabel(id) else "
 
 private fun qnHintText(qn: Int): String = if (qn > 0) qnLabel(qn) else "默认"
 
+private fun PlayerActivity.showShortcutOsd() {
+    setControlsVisible(true)
+    focusDownKeyOsdTargetControl()
+}
+
 internal fun PlayerActivity.dispatchPlayerCustomShortcutIfNeeded(event: KeyEvent): Boolean {
     if (event.action != KeyEvent.ACTION_DOWN) return false
     if (event.repeatCount != 0) return false
@@ -48,19 +52,14 @@ internal fun PlayerActivity.dispatchPlayerCustomShortcutIfNeeded(event: KeyEvent
     val keyCode = event.keyCode
     if (keyCode <= 0 || keyCode == KeyEvent.KEYCODE_UNKNOWN) return false
     if (PlayerCustomShortcutsStore.isForbiddenKeyCode(keyCode)) return false
-
-    // Avoid breaking navigation inside side panels: keep DPAD/ENTER working there.
-    if (isSidePanelVisible()) {
-        when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_UP,
-            KeyEvent.KEYCODE_DPAD_DOWN,
-            KeyEvent.KEYCODE_DPAD_LEFT,
-            KeyEvent.KEYCODE_DPAD_RIGHT,
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_NUMPAD_ENTER,
-            -> return false
-        }
+    if (
+        !PlayerCustomShortcutInputPolicy.canDispatchInVod(
+            hasInteractiveOsd = osdMode != PlayerActivity.OsdMode.Hidden,
+            hasSidePanel = isSidePanelVisible(),
+            hasBottomCardPanel = isBottomCardPanelVisible(),
+        )
+    ) {
+        return false
     }
 
     val binding = BiliClient.prefs.playerCustomShortcuts.firstOrNull { it.keyCode == keyCode } ?: return false
@@ -84,6 +83,10 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
 
         PlayerCustomShortcutAction.OpenSettings -> {
             showSettingsPanel()
+        }
+
+        PlayerCustomShortcutAction.ShowOsd -> {
+            showShortcutOsd()
         }
 
         PlayerCustomShortcutAction.TogglePlayPause -> {
@@ -133,35 +136,36 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
                 showSeekHint("字幕：暂无", hold = false)
                 return
             }
-            session = session.copy(subtitleEnabled = !session.subtitleEnabled)
-            applySubtitleEnabled(exo)
-            updateSubtitleButton()
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            applySubtitleEnabledSetting(!session.subtitleEnabled, exo)
             val state = if (session.subtitleEnabled) "开" else "关"
             showSeekHint("字幕：$state", hold = false)
         }
 
         PlayerCustomShortcutAction.ToggleDanmaku -> {
             setDanmakuEnabled(!session.danmaku.enabled)
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
             val state = if (session.danmaku.enabled) "开" else "关"
             showSeekHint("弹幕：$state", hold = false)
         }
 
         PlayerCustomShortcutAction.ToggleDebugOverlay -> {
-            session = session.copy(debugEnabled = !session.debugEnabled)
-            updateDebugOverlay()
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            toggleSessionSettingFlag(
+                current = session.debugEnabled,
+                updateSession = { copy(debugEnabled = it) },
+                syncToGlobal = { playerDebugEnabled = it },
+                afterApplied = { updateDebugOverlay() },
+            )
             val state = if (session.debugEnabled) "开" else "关"
             showSeekHint("调试信息：$state", hold = false)
         }
 
         PlayerCustomShortcutAction.TogglePersistentBottomProgress -> {
-            val prefs = BiliClient.prefs
-            prefs.playerPersistentBottomProgressEnabled = !prefs.playerPersistentBottomProgressEnabled
-            updatePersistentBottomProgressBarVisibility()
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-            val state = if (prefs.playerPersistentBottomProgressEnabled) "开" else "关"
+            toggleSessionSettingFlag(
+                current = session.persistentBottomProgressEnabled,
+                updateSession = { copy(persistentBottomProgressEnabled = it) },
+                syncToGlobal = { playerPersistentBottomProgressEnabled = it },
+                afterApplied = { updatePersistentBottomProgressBarVisibility() },
+            )
+            val state = if (session.persistentBottomProgressEnabled) "开" else "关"
             showSeekHint("底部进度条：$state", hold = false)
         }
 
@@ -175,15 +179,18 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
                     memory.playbackSpeedPrevByKey[keyCode] = current
                     target
                 }
-            session = session.copy(playbackSpeed = next)
-            player?.setPlaybackSpeed(next)
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            applySessionSettingValue(
+                value = next.coerceIn(0.25f, 4.0f),
+                updateSession = { copy(playbackSpeed = it) },
+                syncToGlobal = { playerSpeed = it },
+                afterApplied = { player?.setPlaybackSpeed(it) },
+            )
             showSeekHint("播放速度：${String.format(Locale.US, "%.2fx", next)}", hold = false)
         }
 
         is PlayerCustomShortcutAction.SetResolutionQn -> {
             val target = action.qn.takeIf { it > 0 } ?: return
-            val current = session.targetQn
+            val current = selectedResolutionQn()
             val next =
                 if (current == target) {
                     memory.targetQnPrevByKey[keyCode] ?: target
@@ -191,15 +198,13 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
                     memory.targetQnPrevByKey[keyCode] = current
                     target
                 }
-            session = session.copy(targetQn = next)
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            applyResolutionSetting(next)
             showSeekHint("分辨率：${qnHintText(next)}", hold = false)
-            reloadStream(keepPosition = true)
         }
 
         is PlayerCustomShortcutAction.SetAudioId -> {
             val target = action.audioId.takeIf { it > 0 } ?: return
-            val current = session.targetAudioId
+            val current = selectedAudioTrackId()
             val next =
                 if (current == target) {
                     memory.targetAudioIdPrevByKey[keyCode] ?: target
@@ -207,10 +212,8 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
                     memory.targetAudioIdPrevByKey[keyCode] = current
                     target
                 }
-            session = session.copy(targetAudioId = next)
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            applyAudioTrackSetting(next)
             showSeekHint("音轨：${audioIdHintText(next)}", hold = false)
-            reloadStream(keepPosition = true)
         }
 
         is PlayerCustomShortcutAction.SetCodec -> {
@@ -223,32 +226,32 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
                     memory.codecPrevByKey[keyCode] = current
                     target
                 }
-            session = session.copy(preferCodec = next)
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            applySessionSettingValue(
+                value = next,
+                updateSession = { copy(preferCodec = it) },
+                syncToGlobal = { playerPreferredCodec = it },
+                afterApplied = { reloadStream(keepPosition = true) },
+            )
             showSeekHint("视频编码：$next", hold = false)
-            reloadStream(keepPosition = true)
         }
 
         is PlayerCustomShortcutAction.SetPlaybackMode -> {
             val engine = player ?: return
             val mode = action.mode.trim()
             val normalized = PlayerPlaybackModes.normalize(mode)
-            val currentOverride = session.playbackModeOverride
-            val nextOverride =
-                if (currentOverride == normalized) {
+            val currentMode = resolvedPlaybackMode()
+            val nextMode =
+                if (currentMode == normalized) {
                     if (memory.playbackModeOverridePrevByKey.containsKey(keyCode)) {
                         memory.playbackModeOverridePrevByKey[keyCode]
                     } else {
                         normalized
                     }
                 } else {
-                    memory.playbackModeOverridePrevByKey[keyCode] = currentOverride
+                    memory.playbackModeOverridePrevByKey[keyCode] = currentMode
                     normalized
                 }
-            session = session.copy(playbackModeOverride = nextOverride)
-            applyPlaybackMode(engine)
-            updatePlaylistControls()
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            applyPlaybackModeSetting(nextMode ?: normalized, engine)
             showSeekHint("播放模式：${playbackModeLabel(resolvedPlaybackMode())}", hold = false)
         }
 
@@ -261,48 +264,27 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
             }
 
             val rawTarget = action.lang.trim()
-            val targetOverride =
+            val targetCode =
                 if (rawTarget.equals(PlayerCustomShortcutAction.SUBTITLE_LANG_DEFAULT, ignoreCase = true) || rawTarget.isBlank()) {
-                    null
+                    defaultSubtitleLangCode()
                 } else {
                     rawTarget
                 }
 
-            val currentOverride = session.subtitleLangOverride
-            val same =
-                when {
-                    currentOverride == null && targetOverride == null -> true
-                    currentOverride == null || targetOverride == null -> false
-                    else -> currentOverride.equals(targetOverride, ignoreCase = true)
-                }
-            val nextOverride =
-                if (same) {
+            val currentCode = resolvedSubtitleLangCode()
+            val nextCode =
+                if (currentCode.equals(targetCode, ignoreCase = true)) {
                     if (memory.subtitleLangOverridePrevByKey.containsKey(keyCode)) {
                         memory.subtitleLangOverridePrevByKey[keyCode]
                     } else {
-                        targetOverride
+                        targetCode
                     }
                 } else {
-                    memory.subtitleLangOverridePrevByKey[keyCode] = currentOverride
-                    targetOverride
+                    memory.subtitleLangOverridePrevByKey[keyCode] = currentCode
+                    targetCode
                 }
-            session = session.copy(subtitleLangOverride = nextOverride)
-
-            showSeekHint("字幕语言：${subtitleLangHintText(nextOverride)}", hold = false)
-
-            // Rebuild subtitle config file and reload stream.
-            val bvid = currentBvid
-            val cid = currentCid
-            if (bvid.isBlank() || cid <= 0L) return
-            lifecycleScope.launch {
-                subtitleConfig = buildSubtitleConfigFromCurrentSelection(bvid = bvid, cid = cid)
-                subtitleAvailabilityKnown = true
-                subtitleAvailable = subtitleConfig != null
-                applySubtitleEnabled(exo)
-                updateSubtitleButton()
-                (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-                reloadStream(keepPosition = true)
-            }
+            applySubtitleLanguageSetting(nextCode ?: targetCode, exo)
+            showSeekHint("字幕语言：${subtitleLangHintText(resolvedSubtitleLangCode())}", hold = false)
         }
 
         is PlayerCustomShortcutAction.SetSubtitleTextSize -> {
@@ -315,9 +297,12 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
                     memory.subtitleTextSizePrevByKey[keyCode] = current
                     target
                 }
-            session = session.copy(subtitleTextSizeSp = next)
-            applySubtitleTextSize()
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            applySessionSettingValue(
+                value = next.coerceIn(10f, 60f),
+                updateSession = { copy(subtitleTextSizeSp = it) },
+                syncToGlobal = { subtitleTextSizeSp = it },
+                afterApplied = { applySubtitleTextSize() },
+            )
             showSeekHint("字幕大小：${next.toInt()}", hold = false)
         }
 
@@ -331,9 +316,12 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
                     memory.danmakuOpacityPrevByKey[keyCode] = current
                     target
                 }
-            session = session.copy(danmaku = session.danmaku.copy(opacity = next))
-            binding.danmakuView.invalidate()
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            applyDanmakuSettingValue(
+                value = next.coerceIn(0.05f, 1.0f),
+                updateDanmaku = { copy(opacity = it) },
+                syncToGlobal = { danmakuOpacity = it },
+                afterApplied = { binding.danmakuView.invalidate() },
+            )
             showSeekHint("弹幕透明度：${String.format(Locale.US, "%.2f", next)}", hold = false)
         }
 
@@ -347,9 +335,12 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
                     memory.danmakuTextSizePrevByKey[keyCode] = current
                     target
                 }
-            session = session.copy(danmaku = session.danmaku.copy(textSizeSp = next))
-            binding.danmakuView.invalidate()
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            applyDanmakuSettingValue(
+                value = next.coerceIn(10f, 60f),
+                updateDanmaku = { copy(textSizeSp = it) },
+                syncToGlobal = { danmakuTextSizeSp = it },
+                afterApplied = { binding.danmakuView.invalidate() },
+            )
             showSeekHint("弹幕大小：${next.toInt()}", hold = false)
         }
 
@@ -363,14 +354,17 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
                     memory.danmakuSpeedLevelPrevByKey[keyCode] = current
                     target
                 }
-            session = session.copy(danmaku = session.danmaku.copy(speedLevel = next))
-            binding.danmakuView.invalidate()
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            applyDanmakuSettingValue(
+                value = next.coerceIn(1, 10),
+                updateDanmaku = { copy(speedLevel = it) },
+                syncToGlobal = { danmakuSpeed = it },
+                afterApplied = { binding.danmakuView.invalidate() },
+            )
             showSeekHint("弹幕速度：$next", hold = false)
         }
 
         is PlayerCustomShortcutAction.SetDanmakuArea -> {
-            val target = action.area.takeIf { it.isFinite() }?.coerceIn(0.05f, 1.0f) ?: 1.0f
+            val target = action.area.takeIf { it.isFinite() }?.let(AppPrefs::normalizeLegacyDanmakuAreaCompat) ?: AppPrefs.DANMAKU_AREA_DEFAULT
             val current = session.danmaku.area
             val next =
                 if (sameFloat(current, target)) {
@@ -379,9 +373,12 @@ private fun PlayerActivity.applyPlayerCustomShortcut(keyCode: Int, action: Playe
                     memory.danmakuAreaPrevByKey[keyCode] = current
                     target
                 }
-            session = session.copy(danmaku = session.danmaku.copy(area = next))
-            binding.danmakuView.invalidate()
-            (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+            applyDanmakuSettingValue(
+                value = AppPrefs.normalizeDanmakuArea(next),
+                updateDanmaku = { copy(area = it) },
+                syncToGlobal = { danmakuArea = it },
+                afterApplied = { binding.danmakuView.invalidate() },
+            )
             showSeekHint("弹幕区域：${areaText(next)}", hold = false)
         }
     }

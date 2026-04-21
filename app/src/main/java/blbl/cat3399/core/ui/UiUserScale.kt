@@ -8,6 +8,7 @@ import androidx.appcompat.view.ContextThemeWrapper
 import blbl.cat3399.R
 import blbl.cat3399.core.theme.ThemePresets
 import blbl.cat3399.core.prefs.AppPrefs
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -24,9 +25,9 @@ import kotlin.math.roundToInt
  * - Avoid double-wrapping: this helper is idempotent (wrapping an already-wrapped context won't stack scales).
  */
 object UiUserScale {
-    fun isWrapped(context: Context): Boolean = context is UserScaledContext
+    fun isWrapped(context: Context): Boolean = findWrappedContext(context) != null
 
-    fun unwrap(context: Context): Context = (context as? UserScaledContext)?.originalBase ?: context
+    fun unwrap(context: Context): Context = findWrappedContext(context)?.originalBase ?: context
 
     fun wrap(
         base: Context,
@@ -38,7 +39,12 @@ object UiUserScale {
                 ?: 1.0f
         val desiredScale = desiredScaleRaw.coerceIn(AppPrefs.UI_SCALE_FACTOR_MIN, AppPrefs.UI_SCALE_FACTOR_MAX)
 
-        val originalBase = unwrap(base)
+        val existingWrapped = findWrappedContext(base)
+        if (existingWrapped != null && abs(existingWrapped.uiScale - desiredScale) < 0.001f) {
+            return base
+        }
+
+        val originalBase = existingWrapped?.originalBase ?: base
         if (desiredScale == 1.0f) return originalBase
 
         val res = originalBase.resources
@@ -78,6 +84,15 @@ object UiUserScale {
             uiScale = desiredScale,
             targetDensityDpi = targetDensityDpi,
         )
+    }
+
+    private fun findWrappedContext(context: Context): UserScaledContext? {
+        var current: Context? = context
+        while (current is ContextWrapper) {
+            if (current is UserScaledContext) return current
+            current = current.baseContext
+        }
+        return current as? UserScaledContext
     }
 
     private class UserScaledContext(

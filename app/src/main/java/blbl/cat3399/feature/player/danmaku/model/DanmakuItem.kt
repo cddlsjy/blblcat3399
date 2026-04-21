@@ -40,6 +40,7 @@ internal class DanmakuItem(
     var durationMs: Int = 0
     var pxPerMs: Float = 0f
     var textWidthPx: Float = 0f
+    var layoutTopPx: Float = 0f
 
     fun timeMs(): Int = data.timeMs
 }

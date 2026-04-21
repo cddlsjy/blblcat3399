@@ -403,6 +403,7 @@ class DanmakuView @JvmOverloads constructor(
             speedLevel = 4,
             area = 1f,
             laneDensity = DanmakuLaneDensity.Standard,
+            showHighLikeIcon = true,
         )
 
     private class DebugStatsCollector {

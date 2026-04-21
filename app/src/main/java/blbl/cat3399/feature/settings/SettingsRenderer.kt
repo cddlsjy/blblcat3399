@@ -215,9 +215,21 @@ class SettingsRenderer(
                     SettingEntry(SettingId.FullscreenEnabled, "以全屏模式运行", if (prefs.fullscreenEnabled) "开" else "关", null),
                     SettingEntry(SettingId.TabSwitchFollowsFocus, "tab跟随焦点切换", if (prefs.tabSwitchFollowsFocus) "开" else "关", null),
                     SettingEntry(
+                        SettingId.MainAutoHideSidebarOnEnterContent,
+                        "进入内容区后关闭侧边栏",
+                        if (prefs.mainAutoHideSidebarOnEnterContent) "开" else "关",
+                        null,
+                    ),
+                    SettingEntry(
                         SettingId.MainBackFocusScheme,
                         "返回键焦点策略",
                         SettingsText.mainBackFocusSchemeText(prefs.mainBackFocusScheme),
+                        null,
+                    ),
+                    SettingEntry(
+                        SettingId.VideoCardLongPressAction,
+                        "长按视频卡片",
+                        SettingsText.videoCardLongPressActionText(prefs.videoCardLongPressAction),
                         null,
                     ),
                     SettingEntry(SettingId.CustomPageEnabled, "自定义页", if (prefs.customPageConfig.enabled) "开" else "关", null),
@@ -280,6 +292,12 @@ class SettingsRenderer(
                     ),
                     SettingEntry(SettingId.PlayerOpenDetailBeforePlay, "播放前打开详情页", if (prefs.playerOpenDetailBeforePlay) "开" else "关", null),
                     SettingEntry(SettingId.PlayerPlaybackMode, "播放模式", SettingsText.playbackModeText(prefs.playerPlaybackMode), null),
+                    SettingEntry(
+                        SettingId.PlayerSettingsApplyToGlobal,
+                        "播放器设置应用到全局",
+                        if (prefs.playerSettingsApplyToGlobal) "开" else "关",
+                        null,
+                    ),
                     SettingEntry(SettingId.SubtitlePreferredLang, "字幕语言", SettingsText.subtitleLangText(prefs.subtitlePreferredLang), null),
                     SettingEntry(SettingId.SubtitleTextSizeSp, "字幕字体大小", prefs.subtitleTextSizeSp.toInt().toString(), null),
                     SettingEntry(
@@ -317,6 +335,18 @@ class SettingsRenderer(
                         null,
                     ),
                     SettingEntry(
+                        SettingId.PlayerPersistentClockEnabled,
+                        "常驻时间显示",
+                        if (prefs.playerPersistentClockEnabled) "开" else "关",
+                        null,
+                    ),
+                    SettingEntry(
+                        SettingId.PlayerTouchGesturesEnabled,
+                        "触摸手势",
+                        if (prefs.playerTouchGesturesEnabled) "开" else "关",
+                        null,
+                    ),
+                    SettingEntry(
                         SettingId.PlayerVideoShotPreviewSize,
                         "缩略图显示",
                         SettingsText.videoShotPreviewSizeText(prefs.playerVideoShotPreviewSize),
@@ -332,7 +362,7 @@ class SettingsRenderer(
                         SettingId.PlayerCustomShortcuts,
                         "自定义播放快捷键",
                         prefs.playerCustomShortcuts.let { if (it.isEmpty()) "未设置" else "已设置 ${it.size} 个" },
-                        "播放时按指定按键切换播放设置（再按一次切回上次值）",
+                        "播放时按指定按键执行动作或切换播放设置（再按一次切回上次值）",
                     ),
                     SettingEntry(
                         SettingId.PlayerAudioBalance,
@@ -366,6 +396,7 @@ class SettingsRenderer(
                     SettingEntry(SettingId.DanmakuLaneDensity, "轨道密度", SettingsText.danmakuLaneDensityText(prefs.danmakuLaneDensity), null),
                     SettingEntry(SettingId.DanmakuSpeed, "弹幕速度", prefs.danmakuSpeed.toString(), null),
                     SettingEntry(SettingId.DanmakuFollowBiliShield, "跟随B站弹幕屏蔽", if (prefs.danmakuFollowBiliShield) "开" else "关", null),
+                    SettingEntry(SettingId.DanmakuShowHighLikeIcon, "显示高赞弹幕图标", if (prefs.danmakuShowHighLikeIcon) "开" else "关", null),
                     SettingEntry(SettingId.DanmakuAiShieldEnabled, "智能云屏蔽", if (prefs.danmakuAiShieldEnabled) "开" else "关", null),
                     SettingEntry(SettingId.DanmakuAiShieldLevel, "智能云屏蔽等级", SettingsText.aiLevelText(prefs.danmakuAiShieldLevel), null),
                     SettingEntry(SettingId.DanmakuAllowScroll, "允许滚动弹幕", if (prefs.danmakuAllowScroll) "开" else "关", null),

@@ -11,7 +11,6 @@ import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.Immersive
 import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.feature.player.engine.BlblPlayerEngine
-import blbl.cat3399.feature.player.engine.PlayerEngineKind
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -60,7 +59,7 @@ internal fun PlayerActivity.setControlsVisible(visible: Boolean) {
 
     binding.controlsRow.visibility = if (show) View.VISIBLE else View.GONE
     binding.tvTime.visibility = if (show) View.VISIBLE else View.GONE
-    binding.topBar.visibility = if (show) View.VISIBLE else View.GONE
+    updateTopBarUi()
     binding.cardUpQuick.visibility = if (show && currentUpMid > 0L) View.VISIBLE else View.GONE
     binding.bottomBar.visibility = if (show) View.VISIBLE else View.GONE
     if (show) {
@@ -69,10 +68,32 @@ internal fun PlayerActivity.setControlsVisible(visible: Boolean) {
         binding.videoShotPreview.visibility = View.GONE
         videoShotFetchJob?.cancel()
     }
+    syncPlayerInfoPanelVisibility()
     updatePersistentBottomProgressBarVisibility()
     onTouchOverlayStateChanged()
     if (visible) noteUserInteraction() else autoHideJob?.cancel()
     if (!show) Immersive.apply(this, BiliClient.prefs.fullscreenEnabled, playerScreen = true)
+}
+
+internal fun PlayerActivity.isTopBarContentVisible(): Boolean = osdMode != PlayerActivity.OsdMode.Hidden
+
+internal fun PlayerActivity.updateClockVisibility() {
+    val showClock = isTopBarContentVisible() || BiliClient.prefs.playerPersistentClockEnabled
+    binding.tvClock.visibility = if (showClock) View.VISIBLE else View.GONE
+}
+
+internal fun PlayerActivity.updateTopBarUi() {
+    val showContent = isTopBarContentVisible()
+    binding.topBar.visibility = View.VISIBLE
+    if (showContent) {
+        binding.topBar.setBackgroundResource(R.drawable.bg_player_top_scrim_strong)
+    } else {
+        binding.topBar.background = null
+    }
+    val contentVisibility = if (showContent) View.VISIBLE else View.INVISIBLE
+    binding.btnBack.visibility = contentVisibility
+    binding.titleRow.visibility = contentVisibility
+    updateClockVisibility()
 }
 
 internal fun PlayerActivity.showSeekOsd() {
@@ -86,10 +107,7 @@ internal fun PlayerActivity.showSeekOsd() {
     val exo = player
     if (exo != null) {
         val duration = exo.duration.takeIf { it > 0 } ?: currentViewDurationMs ?: 0L
-        // During hold-scrub we may have a preview position that should always win.
-        // Do NOT gate on `scrubbing` here: other scrub-related flows may temporarily toggle it,
-        // which would cause the OSD progress bar to jump between preview and actual position.
-        val pos = (holdScrubPreviewPosMs ?: exo.currentPosition).coerceAtLeast(0L)
+        val pos = resolvePlayerUiPositionMs(exo.currentPosition, holdScrubPreviewPosMs, keySeekPreviewPosMs)
         val bufPos = exo.bufferedPosition.coerceAtLeast(0L)
         showSeekOsd(posMs = pos, durationMs = duration, bufferedPosMs = bufPos)
         return
@@ -196,7 +214,7 @@ internal fun PlayerActivity.scheduleHideSeekOsd() {
 }
 
 internal fun PlayerActivity.updatePersistentBottomProgressBarVisibility() {
-    val enabled = BiliClient.prefs.playerPersistentBottomProgressEnabled
+    val enabled = session.persistentBottomProgressEnabled
     val showControls = osdMode != PlayerActivity.OsdMode.Hidden || isSidePanelVisible()
     val persistentV = if (enabled && !showControls && !transientSeekOsdVisible) View.VISIBLE else View.GONE
     if (binding.progressPersistentBottom.visibility != persistentV) binding.progressPersistentBottom.visibility = persistentV
@@ -226,21 +244,45 @@ internal fun PlayerActivity.noteUserInteraction() {
     restartAutoHideTimer()
 }
 
-internal fun PlayerActivity.scheduleKeyScrubEnd() {
+internal fun PlayerActivity.cancelDeferredKeySeekPreview(resetScrubbing: Boolean = true) {
+    keyScrubEndJob?.cancel()
+    keyScrubEndJob = null
+    keyScrubPendingSeekToMs = null
+    keySeekPreviewPosMs = null
+    if (resetScrubbing) scrubbing = false
+    clearKeySeekBufferingOverlaySuppression()
+    updateBufferingOverlay()
+}
+
+private fun PlayerActivity.commitDeferredKeySeekPreview() {
+    val pendingSeekTo = keyScrubPendingSeekToMs
+    keyScrubEndJob?.cancel()
+    keyScrubEndJob = null
+    keyScrubPendingSeekToMs = null
+    keySeekPreviewPosMs = null
+    scrubbing = false
+
+    val engine = player
+    if (pendingSeekTo != null && engine != null) {
+        engine.seekTo(pendingSeekTo)
+        requestDanmakuSegmentsForPosition(pendingSeekTo, immediate = true)
+        requestReportProgressOnce(reason = "user_seek_end")
+        val duration = engine.duration.takeIf { it > 0 } ?: currentViewDurationMs ?: 0L
+        if (duration > 0L) {
+            showSeekOsd(posMs = pendingSeekTo, durationMs = duration, bufferedPosMs = engine.bufferedPosition)
+        }
+    }
+
+    updateBufferingOverlay()
+    restartAutoHideTimer()
+}
+
+internal fun PlayerActivity.scheduleKeyScrubEnd(delayMs: Long = PlayerActivity.KEY_SCRUB_END_DELAY_MS) {
     keyScrubEndJob?.cancel()
     keyScrubEndJob =
         lifecycleScope.launch {
-            delay(PlayerActivity.KEY_SCRUB_END_DELAY_MS)
-            val pendingSeekTo = keyScrubPendingSeekToMs
-            keyScrubPendingSeekToMs = null
-            scrubbing = false
-            val engine = player
-            if (pendingSeekTo != null && engine?.kind == PlayerEngineKind.IjkPlayer) {
-                engine.seekTo(pendingSeekTo)
-                requestDanmakuSegmentsForPosition(pendingSeekTo, immediate = true)
-                requestReportProgressOnce(reason = "user_seek_end")
-            }
-            restartAutoHideTimer()
+            delay(delayMs)
+            commitDeferredKeySeekPreview()
         }
 }
 
@@ -248,6 +290,7 @@ internal fun PlayerActivity.hasControlsFocus(): Boolean =
     binding.topBar.hasFocus() ||
         binding.cardUpQuick.hasFocus() ||
         binding.bottomBar.hasFocus() ||
+        binding.playerInfoPanel.hasFocus() ||
         binding.settingsPanel.hasFocus() ||
         binding.commentsPanel.hasFocus()
 
@@ -354,7 +397,6 @@ internal fun PlayerActivity.beginKeySeekPending(keyCode: Int, direction: Int, sh
             delay(timeoutMs)
             if (keySeekPendingKeyCode != keyCode || keySeekPendingDirection != direction) return@launch
             if (holdSeekJob != null) return@launch
-            showSeekOsd()
             if (direction < 0) {
                 // Long-press LEFT: always use preview-scrub rewind (independent of hold-seek mode setting).
                 startHoldScrub(direction = direction, showControls = showControls)
@@ -364,6 +406,17 @@ internal fun PlayerActivity.beginKeySeekPending(keyCode: Int, direction: Int, sh
             // Once we enter hold, a later ACTION_UP should only stop the hold (no step seek).
             clearKeySeekPending()
         }
+}
+
+internal fun PlayerActivity.holdSeekUsesProgressPreview(direction: Int): Boolean {
+    if (direction < 0) return true
+    return when (BiliClient.prefs.playerHoldSeekMode) {
+        AppPrefs.PLAYER_HOLD_SEEK_MODE_SCRUB,
+        AppPrefs.PLAYER_HOLD_SEEK_MODE_SCRUB_FIXED_TIME,
+        -> true
+
+        else -> false
+    }
 }
 
 internal fun PlayerActivity.smartSeek(direction: Int, showControls: Boolean, hintKind: SeekHintKind) {
@@ -381,7 +434,29 @@ internal fun PlayerActivity.smartSeek(direction: Int, showControls: Boolean, hin
     }
 
     val step = smartSeekStepMs()
-    seekRelative(step * direction)
+    val engine = player ?: return
+    val duration = engine.duration.takeIf { it > 0 } ?: currentViewDurationMs
+    if (duration == null || duration <= 0L) {
+        seekRelative(step * direction)
+        smartSeekTotalMs = if (continued) (smartSeekTotalMs + step) else step
+        if (hintKind == SeekHintKind.Step) showSeekStepHint(direction, smartSeekTotalMs)
+        return
+    }
+
+    val target =
+        accumulateDeferredSeekPreviewPositionMs(
+            committedPositionMs = engine.currentPosition,
+            activePreviewPositionMs = keySeekPreviewPosMs,
+            deltaMs = step * direction.toLong(),
+            durationMs = duration,
+        )
+    scrubbing = true
+    keySeekPreviewPosMs = target
+    keyScrubPendingSeekToMs = target
+    suppressBufferingOverlayDuringKeySeek(PlayerActivity.KEY_STEP_SEEK_COMMIT_DELAY_MS)
+    showSeekOsd(posMs = target, durationMs = duration, bufferedPosMs = engine.bufferedPosition.coerceAtLeast(0L))
+    updateBufferingOverlay()
+    scheduleKeyScrubEnd(delayMs = PlayerActivity.KEY_STEP_SEEK_COMMIT_DELAY_MS)
     smartSeekTotalMs = if (continued) (smartSeekTotalMs + step) else step
     if (hintKind == SeekHintKind.Step) showSeekStepHint(direction, smartSeekTotalMs)
 }
@@ -404,6 +479,9 @@ internal fun PlayerActivity.startHoldSeek(direction: Int, showControls: Boolean)
 
     val holdSpeed = holdSeekSpeed()
     val holdMode = BiliClient.prefs.playerHoldSeekMode
+    if (holdMode == AppPrefs.PLAYER_HOLD_SEEK_MODE_SPEED && keyScrubPendingSeekToMs != null) {
+        commitDeferredKeySeekPreview()
+    }
     holdPrevSpeed = engine.playbackSpeed
     holdPrevPlayWhenReady = engine.playWhenReady
     holdScrubPreviewPosMs = null
@@ -459,13 +537,12 @@ internal fun PlayerActivity.startHoldScrubSeek(engine: BlblPlayerEngine, directi
         return
     }
 
+    val initial = resolvePlayerUiPositionMs(engine.currentPosition, holdScrubPreviewPosMs, keySeekPreviewPosMs).coerceIn(0L, duration)
+    cancelDeferredKeySeekPreview(resetScrubbing = false)
     scrubbing = true
-    keyScrubEndJob?.cancel()
-    keyScrubEndJob = null
 
     engine.pause()
 
-    val initial = engine.currentPosition.coerceIn(0L, duration)
     holdScrubPreviewPosMs = initial
     showSeekOsd(posMs = initial, durationMs = duration, bufferedPosMs = engine.bufferedPosition)
 
@@ -549,6 +626,25 @@ internal fun PlayerActivity.holdScrubStepMs(durationMs: Long, tickMs: Long): Lon
             (duration.toDouble() * tick.toDouble() / PlayerActivity.HOLD_SCRUB_TRAVERSE_MS.toDouble()).roundToInt().toLong()
         }
     return step.coerceAtLeast(1L)
+}
+
+internal fun accumulateDeferredSeekPreviewPositionMs(
+    committedPositionMs: Long,
+    activePreviewPositionMs: Long?,
+    deltaMs: Long,
+    durationMs: Long,
+): Long {
+    val duration = durationMs.coerceAtLeast(0L)
+    val base = (activePreviewPositionMs ?: committedPositionMs).coerceAtLeast(0L)
+    return (base + deltaMs).coerceIn(0L, duration)
+}
+
+internal fun resolvePlayerUiPositionMs(
+    committedPositionMs: Long,
+    holdPreviewPositionMs: Long?,
+    deferredPreviewPositionMs: Long?,
+): Long {
+    return (holdPreviewPositionMs ?: deferredPreviewPositionMs ?: committedPositionMs).coerceAtLeast(0L)
 }
 
 internal fun PlayerActivity.showSeekHint(text: String, hold: Boolean) {

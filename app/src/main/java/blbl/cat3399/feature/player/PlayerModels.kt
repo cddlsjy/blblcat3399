@@ -1,5 +1,6 @@
 package blbl.cat3399.feature.player
 
+import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.feature.player.danmaku.DanmakuSessionSettings
 import blbl.cat3399.feature.player.danmaku.DanmakuFontWeight
 import blbl.cat3399.feature.player.danmaku.DanmakuLaneDensity
@@ -134,6 +135,8 @@ internal data class PlayerSessionSettings(
     val subtitleTextSizeSp: Float,
     val subtitleBottomPaddingFraction: Float,
     val subtitleBackgroundOpacity: Float,
+    val audioBalanceLevel: AudioBalanceLevel,
+    val persistentBottomProgressEnabled: Boolean,
     val danmaku: DanmakuSessionSettings,
     val debugEnabled: Boolean,
     val engineKind: PlayerEngineKind,
@@ -155,6 +158,8 @@ internal fun PlayerSessionSettings.toEngineSwitchJsonString(): String {
             put("subtitleTextSizeSp", subtitleTextSizeSp.toDouble())
             put("subtitleBottomPaddingFraction", subtitleBottomPaddingFraction.toDouble())
             put("subtitleBackgroundOpacity", subtitleBackgroundOpacity.toDouble())
+            put("audioBalanceLevel", audioBalanceLevel.prefValue)
+            put("persistentBottomProgressEnabled", persistentBottomProgressEnabled)
             put("danmakuEnabled", danmaku.enabled)
             put("danmakuOpacity", danmaku.opacity.toDouble())
             put("danmakuTextSizeSp", danmaku.textSizeSp.toDouble())
@@ -163,6 +168,7 @@ internal fun PlayerSessionSettings.toEngineSwitchJsonString(): String {
             put("danmakuSpeedLevel", danmaku.speedLevel)
             put("danmakuArea", danmaku.area.toDouble())
             put("danmakuLaneDensity", danmaku.laneDensity.prefValue)
+            put("danmakuShowHighLikeIcon", danmaku.showHighLikeIcon)
             put("debugEnabled", debugEnabled)
             put("engineKind", engineKind.prefValue)
         }
@@ -213,14 +219,18 @@ internal fun PlayerSessionSettings.restoreFromEngineSwitchJsonString(raw: String
     val subBackgroundOpacity =
         optFloat("subtitleBackgroundOpacity", subtitleBackgroundOpacity)
             .coerceIn(0f, 1.0f)
+    val audioBalanceLevel = AudioBalanceLevel.fromPrefValue(obj.optString("audioBalanceLevel", audioBalanceLevel.prefValue))
+    val persistentBottomProgressEnabled =
+        obj.optBoolean("persistentBottomProgressEnabled", persistentBottomProgressEnabled)
     val danEnabled = obj.optBoolean("danmakuEnabled", danmaku.enabled)
     val danOpacity = optFloat("danmakuOpacity", danmaku.opacity).coerceIn(0.05f, 1.0f)
     val danText = optFloat("danmakuTextSizeSp", danmaku.textSizeSp).coerceIn(10f, 60f)
     val danFontWeight = DanmakuFontWeight.fromPrefValue(obj.optString("danmakuFontWeight", danmaku.fontWeight.prefValue))
     val danStrokeWidthPx = normalizeDanmakuStrokeWidthPx(optInt("danmakuStrokeWidthPx", danmaku.strokeWidthPx))
     val danSpeed = optInt("danmakuSpeedLevel", danmaku.speedLevel).coerceIn(1, 10)
-    val danArea = optFloat("danmakuArea", danmaku.area).coerceIn(0.05f, 1.0f)
+    val danArea = AppPrefs.normalizeLegacyDanmakuAreaCompat(optFloat("danmakuArea", danmaku.area))
     val danLaneDensity = DanmakuLaneDensity.fromPrefValue(obj.optString("danmakuLaneDensity", danmaku.laneDensity.prefValue))
+    val danShowHighLikeIcon = obj.optBoolean("danmakuShowHighLikeIcon", danmaku.showHighLikeIcon)
     val dbg = obj.optBoolean("debugEnabled", debugEnabled)
     val restoredEngineKind = PlayerEngineKind.fromPrefValue(obj.optString("engineKind", engineKind.prefValue))
 
@@ -237,6 +247,8 @@ internal fun PlayerSessionSettings.restoreFromEngineSwitchJsonString(raw: String
         subtitleTextSizeSp = subTextSize,
         subtitleBottomPaddingFraction = subBottomPaddingFraction,
         subtitleBackgroundOpacity = subBackgroundOpacity,
+        audioBalanceLevel = audioBalanceLevel,
+        persistentBottomProgressEnabled = persistentBottomProgressEnabled,
         danmaku =
             danmaku.copy(
                 enabled = danEnabled,
@@ -247,6 +259,7 @@ internal fun PlayerSessionSettings.restoreFromEngineSwitchJsonString(raw: String
                 speedLevel = danSpeed,
                 area = danArea,
                 laneDensity = danLaneDensity,
+                showHighLikeIcon = danShowHighLikeIcon,
             ),
         debugEnabled = dbg,
         engineKind = restoredEngineKind,
