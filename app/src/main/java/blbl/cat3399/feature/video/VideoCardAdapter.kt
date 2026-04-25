@@ -1,5 +1,7 @@
 package blbl.cat3399.feature.video
 
+import android.animation.AnimatorInflater
+import android.os.Build
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
@@ -282,6 +284,7 @@ class VideoCardAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
         init {
             applyFixedSizing()
+            applyFocusAnimatorIfSupported()
         }
 
         fun bind(
@@ -393,6 +396,12 @@ class VideoCardAdapter(
                     }
                 }
             }
+        }
+
+        private fun applyFocusAnimatorIfSupported() {
+            if (Build.VERSION.SDK_INT < 21) return
+            binding.root.stateListAnimator =
+                AnimatorInflater.loadStateListAnimator(binding.root.context, R.animator.blbl_focus_scale)
         }
 
         private fun applyOverlayTranslations() {

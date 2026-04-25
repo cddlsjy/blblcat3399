@@ -2,6 +2,7 @@ package blbl.cat3399.feature.player
 
 import android.content.Context
 import android.media.AudioManager
+import android.os.Build
 import android.provider.Settings
 import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
@@ -62,8 +63,17 @@ internal fun isSwipeGestureStartExcludedByEdge(
 
 private fun PlayerActivity.requireTouchOverlayBinding(): ViewPlayerTouchOverlayBinding {
     val existing = findViewById<View>(R.id.player_touch_overlay_root)
-    if (existing != null) return ViewPlayerTouchOverlayBinding.bind(existing)
-    return ViewPlayerTouchOverlayBinding.bind(binding.playerTouchOverlayStub.inflate())
+    val overlayBinding =
+        if (existing != null) {
+            ViewPlayerTouchOverlayBinding.bind(existing)
+        } else {
+            ViewPlayerTouchOverlayBinding.bind(binding.playerTouchOverlayStub.inflate())
+        }
+    if (Build.VERSION.SDK_INT >= 26) {
+        overlayBinding.root.defaultFocusHighlightEnabled = false
+        overlayBinding.touchGestureLayer.defaultFocusHighlightEnabled = false
+    }
+    return overlayBinding
 }
 
 internal class PlayerTouchController(

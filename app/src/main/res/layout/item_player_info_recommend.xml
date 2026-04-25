@@ -6,7 +6,6 @@
     android:layout_marginBottom="@dimen/player_info_recommend_row_gap"
     android:clickable="true"
     android:focusable="true"
-    android:stateListAnimator="@animator/blbl_focus_scale"
     app:cardBackgroundColor="#1AFFFFFF"
     app:cardCornerRadius="12dp"
     app:cardElevation="0dp"
@@ -67,7 +66,7 @@
                     android:layout_width="14dp"
                     android:layout_height="14dp"
                     android:contentDescription="@string/app_name"
-                    android:src="@drawable/ic_stat_play"
+                    app:srcCompat="@drawable/ic_stat_play"
                     app:tint="?android:attr/textColorSecondary" />
 
                 <TextView
@@ -84,7 +83,7 @@
                     android:layout_height="14dp"
                     android:layout_marginStart="10dp"
                     android:contentDescription="@string/app_name"
-                    android:src="@drawable/ic_stat_danmaku"
+                    app:srcCompat="@drawable/ic_stat_danmaku"
                     app:tint="?android:attr/textColorSecondary" />
 
                 <TextView
