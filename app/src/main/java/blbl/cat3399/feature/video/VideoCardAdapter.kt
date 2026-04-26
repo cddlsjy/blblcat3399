@@ -509,18 +509,26 @@ class VideoCardAdapter(
 
                             KeyEvent.KEYCODE_DPAD_LEFT ->
                                 if (event.action == KeyEvent.ACTION_DOWN) {
-                                    val next = (overlayUi.selectedIndex - 1).coerceAtLeast(0)
-                                    onOverlayActionSelect(next)
-                                    true
+                                    if (overlayUi.selectedIndex > 0) {
+                                        onOverlayActionSelect(overlayUi.selectedIndex - 1)
+                                        true
+                                    } else {
+                                        onItemFocusLost(item)
+                                        false
+                                    }
                                 } else {
                                     false
                                 }
 
                             KeyEvent.KEYCODE_DPAD_RIGHT ->
                                 if (event.action == KeyEvent.ACTION_DOWN) {
-                                    val next = (overlayUi.selectedIndex + 1).coerceAtMost(overlayUi.actions.lastIndex)
-                                    onOverlayActionSelect(next)
-                                    true
+                                    if (overlayUi.selectedIndex < overlayUi.actions.lastIndex) {
+                                        onOverlayActionSelect(overlayUi.selectedIndex + 1)
+                                        true
+                                    } else {
+                                        onItemFocusLost(item)
+                                        false
+                                    }
                                 } else {
                                     false
                                 }
