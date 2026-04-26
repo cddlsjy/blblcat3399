@@ -3089,6 +3089,7 @@ class PlayerActivity : BaseActivity() {
                         fnval = fnval,
                         constraints = playbackConstraints,
                     )
+                resolvePlayUrlDurationMs(playJson)?.let { currentViewDurationMs = it }
                 showRiskControlBypassHintIfNeeded(playJson)
                 lastAvailableQns = parseDashVideoQnList(playJson)
                 lastAvailableAudioIds = parseDashAudioIdList(playJson, constraints = playbackConstraints)
