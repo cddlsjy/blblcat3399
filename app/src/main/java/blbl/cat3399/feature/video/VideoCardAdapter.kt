@@ -350,7 +350,6 @@ class VideoCardAdapter(
             applyOverlayTranslations()
             bindActionOverlay(
                 item = item,
-                position = position,
                 overlayUi = overlayUi,
                 actionDelegate = actionDelegate,
             )
@@ -438,7 +437,6 @@ class VideoCardAdapter(
 
         private fun bindActionOverlay(
             item: VideoCard,
-            position: Int,
             overlayUi: ActionOverlayUi?,
             actionDelegate: VideoCardActionDelegate?,
         ) {
