@@ -460,6 +460,30 @@ class AppPrefs(context: Context) {
             prefs.edit().putString(KEY_PLAYER_HOLD_SEEK_MODE, v).apply()
         }
 
+    var playerHoldScrubTraverseSeconds: Int
+        get() =
+            normalizePlayerHoldScrubSeconds(
+                prefs.getInt(KEY_PLAYER_HOLD_SCRUB_TRAVERSE_SECONDS, PLAYER_HOLD_SCRUB_SECONDS_DEFAULT),
+            )
+        set(value) =
+            prefs.edit()
+                .putInt(
+                    KEY_PLAYER_HOLD_SCRUB_TRAVERSE_SECONDS,
+                    normalizePlayerHoldScrubSeconds(value),
+                ).apply()
+
+    var playerHoldScrubFixedStepSeconds: Int
+        get() =
+            normalizePlayerHoldScrubSeconds(
+                prefs.getInt(KEY_PLAYER_HOLD_SCRUB_FIXED_STEP_SECONDS, PLAYER_HOLD_SCRUB_SECONDS_DEFAULT),
+            )
+        set(value) =
+            prefs.edit()
+                .putInt(
+                    KEY_PLAYER_HOLD_SCRUB_FIXED_STEP_SECONDS,
+                    normalizePlayerHoldScrubSeconds(value),
+                ).apply()
+
     var playerAutoResumeEnabled: Boolean
         get() = prefs.getBoolean(KEY_PLAYER_AUTO_RESUME_ENABLED, true)
         set(value) = prefs.edit().putBoolean(KEY_PLAYER_AUTO_RESUME_ENABLED, value).apply()
@@ -861,6 +885,10 @@ class AppPrefs(context: Context) {
         return if (PLAYER_SHORT_SEEK_STEP_SECONDS_OPTIONS.contains(value)) value else PLAYER_SHORT_SEEK_STEP_SECONDS_DEFAULT
     }
 
+    private fun normalizePlayerHoldScrubSeconds(value: Int): Int {
+        return if (PLAYER_HOLD_SCRUB_SECONDS_OPTIONS.contains(value)) value else PLAYER_HOLD_SCRUB_SECONDS_DEFAULT
+    }
+
     companion object {
         const val STARTUP_PAGE_HOME = "home"
         const val STARTUP_PAGE_CATEGORY = "category"
@@ -950,6 +978,8 @@ class AppPrefs(context: Context) {
         private const val KEY_PLAYER_SHORT_SEEK_STEP_SECONDS = "player_short_seek_step_seconds"
         private const val KEY_PLAYER_HOLD_SEEK_SPEED = "player_hold_seek_speed"
         private const val KEY_PLAYER_HOLD_SEEK_MODE = "player_hold_seek_mode"
+        private const val KEY_PLAYER_HOLD_SCRUB_TRAVERSE_SECONDS = "player_hold_scrub_traverse_seconds"
+        private const val KEY_PLAYER_HOLD_SCRUB_FIXED_STEP_SECONDS = "player_hold_scrub_fixed_step_seconds"
         private const val KEY_PLAYER_AUTO_RESUME_ENABLED = "player_auto_resume_enabled"
         private const val KEY_PLAYER_AUTO_SKIP_SEGMENTS_ENABLED = "player_auto_skip_segments_enabled"
         private const val KEY_PLAYER_AUTO_SKIP_SERVER_BASE_URL = "player_auto_skip_server_base_url"
@@ -1089,6 +1119,8 @@ class AppPrefs(context: Context) {
         const val PLAYER_HOLD_SEEK_MODE_SCRUB = "scrub"
         const val PLAYER_HOLD_SEEK_MODE_SCRUB_FIXED_TIME = "scrub_fixed_time"
         const val PLAYER_HOLD_SEEK_SPEED_DEFAULT = 3.0f
+        val PLAYER_HOLD_SCRUB_SECONDS_OPTIONS: Set<Int> = linkedSetOf(5, 8, 10, 12, 15, 17, 20, 22, 25, 27, 30)
+        const val PLAYER_HOLD_SCRUB_SECONDS_DEFAULT = 10
 
         const val DEFAULT_PLAYER_AUTO_SKIP_SERVER_BASE_URL = "https://bsbsb.top"
         const val FALLBACK_PLAYER_AUTO_SKIP_SERVER_BASE_URL = "http://154.222.28.109"

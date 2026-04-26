@@ -639,6 +639,8 @@ class SettingsInteractionHandler(
                     .put("short_seek_step_seconds", prefs.playerShortSeekStepSeconds)
                     .put("hold_seek_speed", prefs.playerHoldSeekSpeed)
                     .put("hold_seek_mode", prefs.playerHoldSeekMode)
+                    .put("hold_scrub_traverse_seconds", prefs.playerHoldScrubTraverseSeconds)
+                    .put("hold_scrub_fixed_step_seconds", prefs.playerHoldScrubFixedStepSeconds)
                     .put("auto_resume_enabled", prefs.playerAutoResumeEnabled)
                     .put("auto_skip_segments_enabled", prefs.playerAutoSkipSegmentsEnabled)
                     .put("open_detail_before_play", prefs.playerOpenDetailBeforePlay)
@@ -1269,6 +1271,14 @@ class SettingsInteractionHandler(
                     prefs.playerHoldSeekMode = value
                     renderer.refreshSection(entry.id)
                 }
+            }
+
+            SettingId.PlayerHoldScrubTraverseSeconds -> {
+                showPlayerHoldScrubTraverseSecondsDialog(sectionIndex = state.currentSectionIndex, focusId = entry.id)
+            }
+
+            SettingId.PlayerHoldScrubFixedStepSeconds -> {
+                showPlayerHoldScrubFixedStepSecondsDialog(sectionIndex = state.currentSectionIndex, focusId = entry.id)
             }
 
             SettingId.PlayerAutoResumeEnabled -> {
@@ -2356,6 +2366,51 @@ class SettingsInteractionHandler(
                 options.firstOrNull { SettingsText.seekStepSecondsText(it) == selected }
                     ?: AppPrefs.PLAYER_SHORT_SEEK_STEP_SECONDS_DEFAULT
             prefs.playerShortSeekStepSeconds = value
+            renderer.showSection(sectionIndex, focusId = focusId)
+        }
+    }
+
+    private fun showPlayerHoldScrubTraverseSecondsDialog(sectionIndex: Int, focusId: SettingId) {
+        val prefs = BiliClient.prefs
+        showPlayerHoldScrubSecondsDialog(
+            title = "拖完整个视频所需时间",
+            currentSeconds = prefs.playerHoldScrubTraverseSeconds,
+            sectionIndex = sectionIndex,
+            focusId = focusId,
+        ) { value ->
+            prefs.playerHoldScrubTraverseSeconds = value
+        }
+    }
+
+    private fun showPlayerHoldScrubFixedStepSecondsDialog(sectionIndex: Int, focusId: SettingId) {
+        val prefs = BiliClient.prefs
+        showPlayerHoldScrubSecondsDialog(
+            title = "固定时间拖动进度条间隔",
+            currentSeconds = prefs.playerHoldScrubFixedStepSeconds,
+            sectionIndex = sectionIndex,
+            focusId = focusId,
+        ) { value ->
+            prefs.playerHoldScrubFixedStepSeconds = value
+        }
+    }
+
+    private fun showPlayerHoldScrubSecondsDialog(
+        title: String,
+        currentSeconds: Int,
+        sectionIndex: Int,
+        focusId: SettingId,
+        onSelected: (Int) -> Unit,
+    ) {
+        val options = AppPrefs.PLAYER_HOLD_SCRUB_SECONDS_OPTIONS.toList()
+        showChoiceDialog(
+            title = title,
+            items = options.map(SettingsText::seekStepSecondsText),
+            current = SettingsText.seekStepSecondsText(currentSeconds),
+        ) { selected ->
+            val value =
+                options.firstOrNull { SettingsText.seekStepSecondsText(it) == selected }
+                    ?: AppPrefs.PLAYER_HOLD_SCRUB_SECONDS_DEFAULT
+            onSelected(value)
             renderer.showSection(sectionIndex, focusId = focusId)
         }
     }

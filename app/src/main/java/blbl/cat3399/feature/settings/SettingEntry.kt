@@ -43,6 +43,8 @@ enum class SettingId(
     PlayerShortSeekStepSeconds("player_short_seek_step_seconds"),
     PlayerHoldSeekSpeed("player_hold_seek_speed"),
     PlayerHoldSeekMode("player_hold_seek_mode"),
+    PlayerHoldScrubTraverseSeconds("player_hold_scrub_traverse_seconds"),
+    PlayerHoldScrubFixedStepSeconds("player_hold_scrub_fixed_step_seconds"),
     PlayerAutoResumeEnabled("player_auto_resume_enabled"),
     PlayerAutoSkipSegmentsEnabled("player_auto_skip_segments_enabled"),
     PlayerAutoSkipServerBaseUrl("player_auto_skip_server_base_url"),

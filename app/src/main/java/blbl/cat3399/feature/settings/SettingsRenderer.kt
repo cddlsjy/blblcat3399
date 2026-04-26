@@ -275,6 +275,18 @@ class SettingsRenderer(
                         null,
                     ),
                     SettingEntry(SettingId.PlayerHoldSeekMode, "长按快进模式", SettingsText.holdSeekModeText(prefs.playerHoldSeekMode), null),
+                    SettingEntry(
+                        SettingId.PlayerHoldScrubTraverseSeconds,
+                        "拖完整个视频所需时间",
+                        SettingsText.seekStepSecondsText(prefs.playerHoldScrubTraverseSeconds),
+                        null,
+                    ),
+                    SettingEntry(
+                        SettingId.PlayerHoldScrubFixedStepSeconds,
+                        "固定时间拖动进度条间隔",
+                        SettingsText.seekStepSecondsText(prefs.playerHoldScrubFixedStepSeconds),
+                        null,
+                    ),
                     SettingEntry(SettingId.PlayerAutoResumeEnabled, "自动跳到上次播放位置", if (prefs.playerAutoResumeEnabled) "开" else "关", null),
                     SettingEntry(
                         SettingId.PlayerAutoSkipSegmentsEnabled,
