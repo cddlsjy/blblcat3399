@@ -1199,11 +1199,13 @@
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/comments_panel"
-        android:layout_width="@dimen/player_side_panel_width"
+        android:layout_width="@dimen/player_comments_panel_width"
         android:layout_height="0dp"
         android:layout_margin="@dimen/player_side_panel_margin"
         android:layout_marginTop="@dimen/player_side_panel_margin_top"
         android:layout_marginBottom="@dimen/player_side_panel_margin_bottom"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:visibility="gone"
         app:cardBackgroundColor="#CC1E1E1E"
         app:cardCornerRadius="@dimen/player_side_panel_corner_radius"
@@ -1215,12 +1217,16 @@
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:padding="@dimen/player_side_panel_padding">
 
             <LinearLayout
                 android:id="@+id/row_comment_sort"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 app:layout_constraintEnd_toEndOf="parent"
@@ -1276,6 +1282,8 @@
                 android:layout_width="0dp"
                 android:layout_height="0dp"
                 android:layout_marginTop="@dimen/player_side_panel_content_margin_top"
+                android:clipChildren="false"
+                android:clipToPadding="false"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
@@ -1287,10 +1295,10 @@
                     android:layout_height="match_parent"
                     android:clipChildren="false"
                     android:clipToPadding="false"
-                    android:paddingStart="@dimen/player_side_panel_recycler_padding"
-                    android:paddingTop="@dimen/player_side_panel_recycler_padding"
-                    android:paddingEnd="@dimen/player_side_panel_recycler_padding"
-                    android:paddingBottom="@dimen/player_side_panel_recycler_padding" />
+                    android:paddingStart="@dimen/player_comments_recycler_padding_h"
+                    android:paddingTop="@dimen/focus_safe_padding_v"
+                    android:paddingEnd="@dimen/player_comments_recycler_padding_h"
+                    android:paddingBottom="@dimen/focus_safe_padding_v" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/recycler_comment_thread"
@@ -1298,10 +1306,10 @@
                     android:layout_height="match_parent"
                     android:clipChildren="false"
                     android:clipToPadding="false"
-                    android:paddingStart="@dimen/player_side_panel_recycler_padding"
-                    android:paddingTop="@dimen/player_side_panel_recycler_padding"
-                    android:paddingEnd="@dimen/player_side_panel_recycler_padding"
-                    android:paddingBottom="@dimen/player_side_panel_recycler_padding"
+                    android:paddingStart="@dimen/player_comments_recycler_padding_h"
+                    android:paddingTop="@dimen/focus_safe_padding_v"
+                    android:paddingEnd="@dimen/player_comments_recycler_padding_h"
+                    android:paddingBottom="@dimen/focus_safe_padding_v"
                     android:visibility="gone" />
 
                 <TextView

@@ -155,6 +155,10 @@ class PlayerCommentsAdapter(
             binding.tvUser.text = item.userName.ifBlank { "-" }
             binding.tvUpBadge.visibility = if (item.isUp) View.VISIBLE else View.GONE
             binding.tvTime.text = Format.pubDateText(item.ctimeSec)
+            val hasLikes = item.likeCount > 0L
+            binding.ivLike.visibility = if (hasLikes) View.VISIBLE else View.GONE
+            binding.tvLike.text = if (hasLikes) Format.count(item.likeCount) else ""
+            binding.tvLike.visibility = if (hasLikes) View.VISIBLE else View.GONE
             binding.tvMessage.maxLines = if (isExpanded) Int.MAX_VALUE else 6
             val blankFallback = if (item.pictures.isNotEmpty() || item.noteCvid > 0L) "" else "-"
             EmoteSpannable.setText(binding.tvMessage, item.message, item.emotes, blankFallback = blankFallback)
