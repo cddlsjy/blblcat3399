@@ -48,13 +48,12 @@ internal class PlayerBufferingOverlayController(
     fun onBufferingStarted(
         resetSpeedSample: Boolean,
         trackSpeed: Boolean = true,
-        immediate: Boolean = false,
     ) {
         val nowMs = SystemClock.elapsedRealtime()
         if (bufferingStateStartedAtMs <= 0L) bufferingStateStartedAtMs = nowMs
         if (resetSpeedSample) speedMeter.reset()
         speedTrackingEnabled = trackSpeed
-        update(immediate = immediate)
+        update()
     }
 
     fun suppressFor(durationMs: Long, graceMs: Long) {
@@ -73,7 +72,7 @@ internal class PlayerBufferingOverlayController(
         overlayEligibleAtMs = 0L
     }
 
-    fun update(immediate: Boolean = false) {
+    fun update() {
         val binding = bindingProvider() ?: return
         val nowMs = SystemClock.elapsedRealtime()
         val isBuffering = playbackStateProvider() == Player.STATE_BUFFERING
@@ -108,12 +107,7 @@ internal class PlayerBufferingOverlayController(
                 bufferingStateStartedAtMs,
                 overlayEligibleAtMs.takeIf { it > 0L } ?: 0L,
             )
-        val remainingDelayMs =
-            if (immediate) {
-                0L
-            } else {
-                showDelayMs - (nowMs - bufferingStartedAtMs)
-            }
+        val remainingDelayMs = showDelayMs - (nowMs - bufferingStartedAtMs)
         if (remainingDelayMs > 0L) {
             if (binding.bufferingOverlay.visibility != View.VISIBLE) {
                 binding.bufferingOverlay.visibility = View.GONE

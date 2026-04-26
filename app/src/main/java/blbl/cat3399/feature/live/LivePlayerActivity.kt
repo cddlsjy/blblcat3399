@@ -307,11 +307,9 @@ class LivePlayerActivity : BaseActivity() {
                     AppLog.e("LivePlayer", "onPlayerError", error)
                     val playbackException = error as? PlaybackException
                     if (playbackException != null && tryRecoverBehindLiveWindow(playbackException)) {
-                        showBufferingOverlay()
                         return
                     }
                     if (tryAutoFailoverOnError(error)) {
-                        showBufferingOverlay()
                         return
                     }
                     resetBufferingOverlayState()
@@ -1405,7 +1403,6 @@ class LivePlayerActivity : BaseActivity() {
 
     private suspend fun loadAndPlay(initial: Boolean) {
         val engine = player ?: return
-        showBufferingOverlay()
         try {
             val info = BiliApi.liveRoomInfo(roomId)
             realRoomId = info.roomId

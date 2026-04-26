@@ -7,11 +7,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
+import androidx.fragment.app.FragmentManager
 import androidx.viewpager2.adapter.FragmentStateAdapter
-import blbl.cat3399.core.api.BiliApi
 import blbl.cat3399.core.log.AppLog
-import blbl.cat3399.core.model.LiveAreaParent
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.ui.TabContentFocusTarget
@@ -27,9 +25,6 @@ import blbl.cat3399.ui.RefreshKeyHandler
 import blbl.cat3399.ui.SidebarFocusHost
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
-import androidx.fragment.app.FragmentManager
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, LiveNavigator {
     private var _binding: FragmentLiveBinding? = null
@@ -43,7 +38,6 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, L
     private var pendingBackToTab0AttemptsLeft: Int = 0
     private var pendingRestoreFocusAfterDetailReturn: Boolean = false
 
-    private var loadAreasJob: Job? = null
     private var backStackListener: FragmentManager.OnBackStackChangedListener? = null
 
     private val tabReselectRefreshListener: TabLayout.OnTabSelectedListener =
@@ -57,10 +51,13 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, L
             }
         }
 
-    private var tabs: List<LiveTab> =
+    private val tabs: List<LiveTab> =
         buildList {
             add(LiveTab.Recommend)
             if (BiliClient.cookies.hasSessData()) add(LiveTab.Following)
+            LiveAreas.defaultParents
+                .filter { it.id > 0 && it.name.isNotBlank() }
+                .forEach { add(LiveTab.Area(parentId = it.id, title = it.name)) }
         }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -76,14 +73,6 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, L
                 if (!showDetail) maybeRestoreFocusAfterDetailReturn()
             }.also { childFragmentManager.addOnBackStackChangedListener(it) }
         updateDetailVisibility()
-
-        loadAreasJob?.cancel()
-        loadAreasJob =
-            viewLifecycleOwner.lifecycleScope.launch {
-                runCatching { BiliApi.liveAreas() }
-                    .onSuccess { parents -> applyAreas(parents) }
-                    .onFailure { AppLog.w("Live", "load areas failed", it) }
-            }
     }
 
     override fun onResume() {
@@ -141,24 +130,6 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, L
         val page = currentPageFragment() ?: return false
         val handler = page as? RefreshKeyHandler ?: return false
         return handler.handleRefreshKey()
-    }
-
-    private fun applyAreas(parents: List<LiveAreaParent>) {
-        // Keep UI manageable: recommend + following + top parents.
-        val picked =
-            parents
-                .filter { it.id > 0 && it.name.isNotBlank() }
-                .sortedByDescending { it.children.count { c -> c.hot } }
-                .take(12)
-                .map { LiveTab.Area(parentId = it.id, title = it.name) }
-        val next = buildList {
-            add(LiveTab.Recommend)
-            if (BiliClient.cookies.hasSessData()) add(LiveTab.Following)
-            addAll(picked)
-        }
-        if (next == tabs) return
-        tabs = next
-        setTabs(tabs)
     }
 
     private fun setTabs(list: List<LiveTab>) {
@@ -303,9 +274,6 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, L
     }
 
     override fun onDestroyView() {
-        loadAreasJob?.cancel()
-        loadAreasJob = null
-
         backStackListener?.let { childFragmentManager.removeOnBackStackChangedListener(it) }
         backStackListener = null
 
