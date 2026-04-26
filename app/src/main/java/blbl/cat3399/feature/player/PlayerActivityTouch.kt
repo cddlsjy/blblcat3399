@@ -2,6 +2,7 @@ package blbl.cat3399.feature.player
 
 import android.content.Context
 import android.media.AudioManager
+import android.os.Build
 import android.provider.Settings
 import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
@@ -10,6 +11,8 @@ import android.view.View
 import android.view.ViewConfiguration
 import androidx.lifecycle.lifecycleScope
 import blbl.cat3399.R
+import blbl.cat3399.core.net.BiliClient
+import blbl.cat3399.databinding.ViewPlayerTouchOverlayBinding
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -17,9 +20,13 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 internal fun PlayerActivity.initTouchGestures() {
+    if (!BiliClient.prefs.playerTouchGesturesEnabled) {
+        releaseTouchGestures()
+        return
+    }
     if (touchController != null) return
     touchController =
-        PlayerTouchController(this).also { controller ->
+        PlayerTouchController(this, requireTouchOverlayBinding()).also { controller ->
             controller.install()
         }
 }
@@ -33,10 +40,45 @@ internal fun PlayerActivity.onTouchOverlayStateChanged() {
 internal fun PlayerActivity.releaseTouchGestures() {
     touchController?.release()
     touchController = null
+    tapSeekActiveDirection = 0
+    tapSeekActiveUntilMs = 0L
+}
+
+internal fun isSwipeGestureStartExcludedByEdge(
+    x: Float,
+    y: Float,
+    width: Float,
+    height: Float,
+    edgeRatio: Float,
+): Boolean {
+    if (width <= 0f || height <= 0f) return false
+    val clampedRatio = edgeRatio.coerceIn(0f, 0.5f)
+    val excludedWidth = width * clampedRatio
+    val excludedHeight = height * clampedRatio
+    return x <= excludedWidth ||
+        x >= width - excludedWidth ||
+        y <= excludedHeight ||
+        y >= height - excludedHeight
+}
+
+private fun PlayerActivity.requireTouchOverlayBinding(): ViewPlayerTouchOverlayBinding {
+    val existing = findViewById<View>(R.id.player_touch_overlay_root)
+    val overlayBinding =
+        if (existing != null) {
+            ViewPlayerTouchOverlayBinding.bind(existing)
+        } else {
+            ViewPlayerTouchOverlayBinding.bind(binding.playerTouchOverlayStub.inflate())
+        }
+    if (Build.VERSION.SDK_INT >= 26) {
+        overlayBinding.root.defaultFocusHighlightEnabled = false
+        overlayBinding.touchGestureLayer.defaultFocusHighlightEnabled = false
+    }
+    return overlayBinding
 }
 
 internal class PlayerTouchController(
     private val activity: PlayerActivity,
+    private val overlayBinding: ViewPlayerTouchOverlayBinding,
 ) {
     private enum class TouchGestureMode {
         None,
@@ -84,7 +126,6 @@ internal class PlayerTouchController(
                         return true
                     }
 
-                    activity.showSeekOsd()
                     activity.smartSeek(direction = dir, showControls = false, hintKind = SeekHintKind.Step)
                     activity.tapSeekActiveDirection = dir
                     activity.tapSeekActiveUntilMs = android.os.SystemClock.uptimeMillis() + touchTapSeekActiveMs
@@ -108,7 +149,6 @@ internal class PlayerTouchController(
                     if (width > 0f && now <= activity.tapSeekActiveUntilMs) {
                         val dir = activity.edgeDirection(e.x, width)
                         if (dir != 0 && dir == activity.tapSeekActiveDirection) {
-                            activity.showSeekOsd()
                             activity.smartSeek(direction = dir, showControls = false, hintKind = SeekHintKind.Step)
                             activity.tapSeekActiveUntilMs = now + touchTapSeekActiveMs
                             return true
@@ -135,6 +175,7 @@ internal class PlayerTouchController(
     private var touchSeekStartPosMs = 0L
     private var touchSeekDurationMs = 0L
     private var touchSeekBufferedPosMs = 0L
+    private var swipeGestureStartAllowed = true
     private var volumeStart = 0
     private var brightnessStart = 0.5f
     private var touchLocked = false
@@ -142,9 +183,10 @@ internal class PlayerTouchController(
     private var lockUiHideJob: Job? = null
 
     fun install() {
-        binding.touchGestureLayer.visibility = View.VISIBLE
-        binding.touchGestureLayer.setOnTouchListener(this::onTouch)
-        binding.btnTouchLock.setOnClickListener {
+        overlayBinding.root.visibility = View.VISIBLE
+        overlayBinding.touchGestureLayer.visibility = View.VISIBLE
+        overlayBinding.touchGestureLayer.setOnTouchListener(this::onTouch)
+        overlayBinding.btnTouchLock.setOnClickListener {
             if (touchLocked) {
                 unlockTouch()
             } else {
@@ -170,16 +212,18 @@ internal class PlayerTouchController(
         finishActiveGesture(commitSeek = false)
         stopBoostPlayback()
         pointerDown = false
+        swipeGestureStartAllowed = true
         tapSuppressed = false
     }
 
     fun release() {
         onStop()
         lockUiHideJob?.cancel()
-        binding.touchGestureLayer.setOnTouchListener(null)
-        binding.touchGestureLayer.visibility = View.GONE
-        binding.btnTouchLock.setOnClickListener(null)
-        binding.btnTouchLock.visibility = View.GONE
+        overlayBinding.touchGestureLayer.setOnTouchListener(null)
+        overlayBinding.touchGestureLayer.visibility = View.GONE
+        overlayBinding.btnTouchLock.setOnClickListener(null)
+        overlayBinding.btnTouchLock.visibility = View.GONE
+        overlayBinding.root.visibility = View.GONE
     }
 
     private fun onTouch(v: View, event: MotionEvent): Boolean {
@@ -259,6 +303,14 @@ internal class PlayerTouchController(
         downY = event.y
         lastX = event.x
         lastY = event.y
+        swipeGestureStartAllowed =
+            !isSwipeGestureStartExcludedByEdge(
+                x = event.x,
+                y = event.y,
+                width = gestureLayerWidth(),
+                height = gestureLayerHeight(),
+                edgeRatio = PlayerActivity.TOUCH_GESTURE_EXCLUDED_EDGE_RATIO,
+            )
         pendingRightEdgeBoostJob?.cancel()
     }
 
@@ -291,6 +343,13 @@ internal class PlayerTouchController(
             TouchGestureMode.Volume -> updateVolumeGesture(event.y)
             TouchGestureMode.Blocked -> Unit
             TouchGestureMode.None -> {
+                if (!swipeGestureStartAllowed) {
+                    if (shouldBlockGestureRecognition(absDx = absDx, absDy = absDy)) {
+                        gestureMode = TouchGestureMode.Blocked
+                    }
+                    return
+                }
+
                 val directionRatio = PlayerActivity.TOUCH_GESTURE_DIRECTION_RATIO
                 if (absDx >= seekActivationThresholdPx && absDx >= absDy * directionRatio) {
                     if (!startSeekGesture()) {
@@ -315,9 +374,7 @@ internal class PlayerTouchController(
                     return
                 }
 
-                if (absDx > touchSlopPx * PlayerActivity.TOUCH_GESTURE_BLOCK_THRESHOLD_MULTIPLIER ||
-                    absDy > touchSlopPx * PlayerActivity.TOUCH_GESTURE_BLOCK_THRESHOLD_MULTIPLIER
-                ) {
+                if (shouldBlockGestureRecognition(absDx = absDx, absDy = absDy)) {
                     gestureMode = TouchGestureMode.Blocked
                 }
             }
@@ -333,6 +390,7 @@ internal class PlayerTouchController(
             stopBoostPlayback()
         }
         finishActiveGesture(commitSeek = !cancelled)
+        swipeGestureStartAllowed = true
 
         if (cancelled) {
             tapSuppressed = false
@@ -359,6 +417,7 @@ internal class PlayerTouchController(
         activity.cancelPendingAutoResume(reason = "user_seek")
         activity.cancelPendingAutoSkip(reason = "user_seek", markIgnored = true)
         activity.cancelPendingAutoNext(reason = "user_seek", markCancelledByUser = false)
+        activity.cancelDeferredKeySeekPreview(resetScrubbing = false)
         activity.scrubbing = true
         activity.keyScrubPendingSeekToMs = null
         activity.keyScrubEndJob?.cancel()
@@ -417,7 +476,7 @@ internal class PlayerTouchController(
     }
 
     private fun updateBrightnessGesture(y: Float) {
-        val height = binding.touchGestureLayer.height.coerceAtLeast(1)
+        val height = overlayBinding.touchGestureLayer.height.coerceAtLeast(1)
         val delta = ((downY - y) / height.toFloat()).coerceIn(-1f, 1f)
         val brightness =
             (brightnessStart + delta).coerceIn(
@@ -440,7 +499,7 @@ internal class PlayerTouchController(
     private fun updateVolumeGesture(y: Float) {
         val manager = audioManager ?: return
         val maxVolume = manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
-        val height = binding.touchGestureLayer.height.coerceAtLeast(1)
+        val height = overlayBinding.touchGestureLayer.height.coerceAtLeast(1)
         val deltaSteps = ((downY - y) / height.toFloat() * maxVolume.toFloat()).roundToInt()
         val volume = (volumeStart + deltaSteps).coerceIn(0, maxVolume)
         manager.setStreamVolume(AudioManager.STREAM_MUSIC, volume, 0)
@@ -477,7 +536,7 @@ internal class PlayerTouchController(
             activity.getString(R.string.player_touch_boost_fmt, activity.holdSeekSpeedText(speed)),
             hold = true,
         )
-        binding.touchGestureLayer.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        overlayBinding.touchGestureLayer.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
     }
 
     private fun stopBoostPlayback() {
@@ -549,23 +608,33 @@ internal class PlayerTouchController(
                     !activity.isBottomCardPanelVisible() &&
                     binding.commentImageViewer.visibility != View.VISIBLE
             }
-        binding.btnTouchLock.visibility = if (visible) View.VISIBLE else View.GONE
-        binding.btnTouchLock.setImageResource(
+        overlayBinding.btnTouchLock.visibility = if (visible) View.VISIBLE else View.GONE
+        overlayBinding.btnTouchLock.setImageResource(
             if (touchLocked) R.drawable.ic_player_lock else R.drawable.ic_player_unlock,
         )
-        binding.btnTouchLock.contentDescription =
+        overlayBinding.btnTouchLock.contentDescription =
             activity.getString(
                 if (touchLocked) R.string.player_touch_unlock else R.string.player_touch_lock,
             )
     }
 
     private fun gestureLayerWidth(): Float {
-        return binding.touchGestureLayer.width.toFloat().takeIf { it > 0f }
+        return overlayBinding.touchGestureLayer.width.toFloat().takeIf { it > 0f }
             ?: binding.playerView.width.toFloat()
+    }
+
+    private fun gestureLayerHeight(): Float {
+        return overlayBinding.touchGestureLayer.height.toFloat().takeIf { it > 0f }
+            ?: binding.playerView.height.toFloat()
     }
 
     private fun hasExceededTouchSlop(x: Float, y: Float): Boolean {
         return abs(x - downX) > touchSlopPx || abs(y - downY) > touchSlopPx
+    }
+
+    private fun shouldBlockGestureRecognition(absDx: Float, absDy: Float): Boolean {
+        return absDx > touchSlopPx * PlayerActivity.TOUCH_GESTURE_BLOCK_THRESHOLD_MULTIPLIER ||
+            absDy > touchSlopPx * PlayerActivity.TOUCH_GESTURE_BLOCK_THRESHOLD_MULTIPLIER
     }
 
     private fun computeSeekDeltaMs(dx: Float, width: Float, durationMs: Long): Long {

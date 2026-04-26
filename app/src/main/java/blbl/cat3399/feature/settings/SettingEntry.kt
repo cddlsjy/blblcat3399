@@ -28,7 +28,9 @@ enum class SettingId(
     UiScaleFactor("ui_scale_factor"),
     FullscreenEnabled("fullscreen_enabled"),
     TabSwitchFollowsFocus("tab_switch_follows_focus"),
+    MainAutoHideSidebarOnEnterContent("main_auto_hide_sidebar_on_enter_content"),
     MainBackFocusScheme("main_back_focus_scheme"),
+    VideoCardLongPressAction("video_card_long_press_action"),
     FollowingListOrder("following_list_order"),
 
     // 播放设置
@@ -46,6 +48,8 @@ enum class SettingId(
     PlayerAutoSkipServerBaseUrl("player_auto_skip_server_base_url"),
     PlayerOpenDetailBeforePlay("player_open_detail_before_play"),
     PlayerPlaybackMode("player_playback_mode"),
+    PlayerSettingsApplyToGlobal("player_settings_apply_to_global"),
+    PlayerStyle("player_style"),
     SubtitlePreferredLang("subtitle_preferred_lang"),
     SubtitleTextSizeSp("subtitle_text_size_sp"),
     SubtitleBottomPaddingFraction("subtitle_bottom_padding_fraction"),
@@ -63,6 +67,8 @@ enum class SettingId(
     PlayerDownKeyOsdFocusTarget("player_down_key_osd_focus_target"),
     PlayerTogglePlayStateShowOsd("player_toggle_play_state_show_osd"),
     PlayerPersistentBottomProgressEnabled("player_persistent_bottom_progress_enabled"),
+    PlayerPersistentClockEnabled("player_persistent_clock_enabled"),
+    PlayerTouchGesturesEnabled("player_touch_gestures_enabled"),
     PlayerVideoShotPreviewSize("player_videoshot_preview_size"),
 
     // 弹幕设置
@@ -75,6 +81,7 @@ enum class SettingId(
     DanmakuArea("danmaku_area"),
     DanmakuSpeed("danmaku_speed"),
     DanmakuFollowBiliShield("danmaku_follow_bili_shield"),
+    DanmakuShowHighLikeIcon("danmaku_show_high_like_icon"),
     DanmakuAiShieldEnabled("danmaku_ai_shield_enabled"),
     DanmakuAiShieldLevel("danmaku_ai_shield_level"),
     DanmakuAllowScroll("danmaku_allow_scroll"),

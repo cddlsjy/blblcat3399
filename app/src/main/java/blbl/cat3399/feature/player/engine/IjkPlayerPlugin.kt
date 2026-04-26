@@ -3,6 +3,10 @@ package blbl.cat3399.feature.player.engine
 import android.content.Context
 import android.os.Build
 import blbl.cat3399.core.net.BiliClient
+import blbl.cat3399.core.net.bodyOrNull
+import blbl.cat3399.core.net.statusCode
+import blbl.cat3399.core.net.statusMessage
+import blbl.cat3399.core.util.DeviceAbi
 import blbl.cat3399.core.net.await
 import blbl.cat3399.core.net.ipv4OnlyDns
 import kotlinx.coroutines.Dispatchers
@@ -71,7 +75,7 @@ internal object IjkPlayerPlugin {
     }
 
     fun deviceAbi(): String? {
-        return Build.SUPPORTED_ABIS.firstOrNull { supportedAbis.contains(it) }
+        return DeviceAbi.getSupportedAbis().firstOrNull { supportedAbis.contains(it) }
     }
 
     fun isInstalled(context: Context, abi: String = deviceAbi().orEmpty()): Boolean {
@@ -84,7 +88,10 @@ internal object IjkPlayerPlugin {
 
     fun soFile(context: Context, abi: String = deviceAbi().orEmpty()): File {
         val safeAbi = abi.trim()
-        val dir = File(context.applicationContext.filesDir, "plugins/ijkplayer/$safeAbi").apply { mkdirs() }
+        // Use a separate directory for the API 19 build so it doesn't collide with the
+        // standard build if the user ever upgrades to a newer device.
+        val variant = if (Build.VERSION.SDK_INT < 21) "$safeAbi-api19" else safeAbi
+        val dir = File(context.applicationContext.filesDir, "plugins/ijkplayer/$variant").apply { mkdirs() }
         return File(dir, SO_FILE_NAME)
     }
 
@@ -107,11 +114,19 @@ internal object IjkPlayerPlugin {
         onProgress: (Progress) -> Unit,
     ): File {
         val appContext = context.applicationContext
-        val abi = deviceAbi() ?: throw IOException("不支持的 ABI：${Build.SUPPORTED_ABIS.joinToString()}")
+        val abi = deviceAbi() ?: throw IOException("不支持的 ABI：${DeviceAbi.getSupportedAbis().joinToString()}")
         if (isInstalled(appContext, abi)) return soFile(appContext, abi)
 
         return withContext(Dispatchers.IO) {
             if (isInstalled(appContext, abi)) return@withContext soFile(appContext, abi)
+
+            // Try to copy from APK's bundled native libs first (API 19 only)
+            if (Build.VERSION.SDK_INT < 21) {
+                val bundledSo = tryExtractBundledSo(appContext, abi)
+                if (bundledSo != null) {
+                    return@withContext bundledSo
+                }
+            }
 
             onProgress(Progress.Connecting)
 
@@ -126,9 +141,30 @@ internal object IjkPlayerPlugin {
         }
     }
 
+    private fun tryExtractBundledSo(context: Context, abi: String): File? {
+        return try {
+            val nativeLibDir = context.applicationInfo.nativeLibraryDir
+            val bundledSo = File(nativeLibDir, SO_FILE_NAME)
+            if (!bundledSo.exists() || !bundledSo.isFile) return null
+            if (bundledSo.length() < MIN_SO_BYTES) return null
+            if (!looksLikeElf(bundledSo)) return null
+
+            val targetSo = soFile(context, abi)
+            targetSo.parentFile?.mkdirs()
+            bundledSo.copyTo(targetSo, overwrite = true)
+
+            if (isInstalled(context, abi)) targetSo else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun zipUrl(abi: String): String {
         val safeAbi = abi.trim()
-        return "$BASE_URL/$safeAbi/$ZIP_FILE_NAME"
+        // API 19 needs a .so built with an older NDK (no _FORTIFY_SOURCE) to avoid
+        // UnsatisfiedLinkError on missing __read_chk / __write_chk symbols.
+        val variant = if (Build.VERSION.SDK_INT < 21) "$safeAbi-api19" else safeAbi
+        return "$BASE_URL/$variant/$ZIP_FILE_NAME"
     }
 
     private val okHttp: OkHttpClient by lazy {
@@ -158,8 +194,8 @@ internal object IjkPlayerPlugin {
         val res = call.await()
 
         res.use { r ->
-            check(r.isSuccessful) { "HTTP ${r.code} ${r.message}" }
-            val body = r.body ?: error("empty body")
+            check(r.isSuccessful) { "HTTP ${r.statusCode()} ${r.statusMessage()}" }
+            val body = r.bodyOrNull() ?: error("empty body")
             val total = body.contentLength().takeIf { it > 0 }
             body.byteStream().use { input ->
                 FileOutputStream(part).use { output ->

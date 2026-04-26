@@ -1,27 +1,36 @@
 package blbl.cat3399.core.net
 
 import android.content.Context
+import android.os.Build
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.prefs.AppPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.CookieJar
 import okhttp3.FormBody
-import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONObject
 import java.io.IOException
+import java.security.KeyStore
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 
 object BiliClient {
     private const val TAG = "BiliClient"
     private const val BASE = "https://api.bilibili.com"
     private const val HDR_SKIP_ORIGIN = "X-Blbl-Skip-Origin"
     private const val LOG_HTTP_REQUESTS = false
+
+    private val NO_COOKIES = object : CookieJar {
+        override fun saveFromResponse(url: HttpUrl, cookies: List<okhttp3.Cookie>) {}
+        override fun loadForRequest(url: HttpUrl): List<okhttp3.Cookie> = emptyList()
+    }
 
     lateinit var prefs: AppPrefs
         private set
@@ -51,13 +60,16 @@ object BiliClient {
         prefs = AppPrefs(context.applicationContext)
         cookies = CookieStore(context.applicationContext)
         val dns = ipv4OnlyDns { prefs.ipv4OnlyEnabled }
-        val baseClient = OkHttpClient.Builder()
+        val baseBuilder = OkHttpClient.Builder()
             .cookieJar(cookies)
             .dns(dns)
             .connectTimeout(12, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
-            .build()
+        if (Build.VERSION.SDK_INT < 21) {
+            installConscryptTls(baseBuilder)
+        }
+        val baseClient = baseBuilder.build()
 
         apiOkHttp = baseClient.newBuilder()
             .addInterceptor { chain ->
@@ -74,13 +86,13 @@ object BiliClient {
                 val res = chain.proceed(req)
                 val costMs = (System.nanoTime() - start) / 1_000_000
                 if (LOG_HTTP_REQUESTS) {
-                    AppLog.d(TAG, "${req.method} ${req.url.host}${req.url.encodedPath} -> ${res.code} (${costMs}ms)")
+                    AppLog.d(TAG, "${req.requestMethod()} ${req.requestUrl().urlHost()}${req.requestUrl().urlEncodedPath()} -> ${res.statusCode()} (${costMs}ms)")
                 }
                 res
             }
             .build()
 
-        apiOkHttpNoCookies = apiOkHttp.newBuilder().cookieJar(CookieJar.NO_COOKIES).build()
+        apiOkHttpNoCookies = apiOkHttp.newBuilder().cookieJar(NO_COOKIES).build()
 
         cdnOkHttp = baseClient.newBuilder()
             .addInterceptor { chain ->
@@ -95,7 +107,7 @@ object BiliClient {
                 val res = chain.proceed(req)
                 val costMs = (System.nanoTime() - start) / 1_000_000
                 if (LOG_HTTP_REQUESTS) {
-                    AppLog.d(TAG, "CDN ${req.method} ${req.url.host}${req.url.encodedPath} -> ${res.code} (${costMs}ms)")
+                    AppLog.d(TAG, "CDN ${req.requestMethod()} ${req.requestUrl().urlHost()}${req.requestUrl().urlEncodedPath()} -> ${res.statusCode()} (${costMs}ms)")
                 }
                 res
             }
@@ -114,14 +126,16 @@ object BiliClient {
     }
 
     private fun clientFor(url: String, noCookies: Boolean = false): OkHttpClient {
-        val host = runCatching { url.toHttpUrl().host }.getOrNull().orEmpty()
-        return if (
-            host.endsWith("hdslb.com") ||
+        val host = runCatching { url.parseHttpUrl()?.urlHost() }.getOrNull().orEmpty()
+        val isCdn = host.endsWith("hdslb.com") ||
             host.contains("bilivideo.com") ||
             host.contains("bilivideo.cn") ||
             host.contains("mcdn.bilivideo")
-        ) cdnOkHttp else apiOkHttp
-            .let { if (noCookies) apiOkHttpNoCookies else apiOkHttp }
+        return when {
+            isCdn -> cdnOkHttp
+            noCookies -> apiOkHttpNoCookies
+            else -> apiOkHttp
+        }
     }
 
     suspend fun requestString(
@@ -147,13 +161,13 @@ object BiliClient {
         for ((k, v) in headers) reqBuilder.header(k, v)
         when (method.uppercase()) {
             "GET" -> reqBuilder.get()
-            "POST" -> reqBuilder.post(body ?: ByteArray(0).toRequestBody(null))
+            "POST" -> reqBuilder.post(body ?: RequestBody.create(null, ByteArray(0)))
             else -> error("Unsupported method: $method")
         }
         val res = clientFor(url, noCookies = noCookies).newCall(reqBuilder.build()).await()
         res.use { r ->
-            val raw = withContext(Dispatchers.IO) { r.body?.string() ?: "" }
-            return StringResponse(code = r.code, message = r.message, body = raw)
+            val raw = withContext(Dispatchers.IO) { r.bodyOrNull()?.string() ?: "" }
+            return StringResponse(code = r.statusCode(), message = r.statusMessage(), body = raw)
         }
     }
 
@@ -179,13 +193,10 @@ object BiliClient {
         for ((k, v) in headers) reqBuilder.header(k, v)
         val res = clientFor(url, noCookies = noCookies).newCall(reqBuilder.build()).await()
         res.use { r ->
-            val bytes = withContext(Dispatchers.IO) { r.body?.bytes() ?: ByteArray(0) }
+            val bytes = withContext(Dispatchers.IO) { r.bodyOrNull()?.bytes() ?: ByteArray(0) }
             if (!r.isSuccessful) {
-                // Some networks/proxies may return unexpected non-2xx (e.g. 304) while still
-                // attaching a body; prefer using the body when available to avoid breaking flows
-                // like danmaku segment parsing.
                 if (bytes.isNotEmpty()) return bytes
-                throw IOException("HTTP ${r.code} ${r.message}")
+                throw IOException("HTTP ${r.statusCode()} ${r.statusMessage()}")
             }
             return bytes
         }
@@ -211,11 +222,10 @@ object BiliClient {
     }
 
     fun withQuery(url: String, params: Map<String, String>): String {
-        val httpUrl = url.toHttpUrl().newBuilder()
+        val httpUrl = url.parseHttpUrl()?.newBuilder() ?: return url
         for ((k, v) in params) httpUrl.addQueryParameter(k, v)
         return httpUrl.build().toString()
     }
-
     fun signedWbiUrl(path: String, params: Map<String, String>, keys: WbiSigner.Keys, nowEpochSec: Long = System.currentTimeMillis() / 1000): String {
         val base = "$BASE$path"
         val signed = WbiSigner.signQuery(params, keys, nowEpochSec)
@@ -225,5 +235,21 @@ object BiliClient {
     fun signedWbiUrlAbsolute(url: String, params: Map<String, String>, keys: WbiSigner.Keys, nowEpochSec: Long = System.currentTimeMillis() / 1000): String {
         val signed = WbiSigner.signQuery(params, keys, nowEpochSec)
         return withQuery(url, signed)
+    }
+
+    // API 19–20 的系统 SSL 不支持 TLS 1.2/1.3，借助 Conscrypt 补齐。
+    // BlblApp.onCreate() 已将 Conscrypt 注册为全局 Security provider，此处直接使用默认 provider。
+    private fun installConscryptTls(builder: OkHttpClient.Builder) {
+        try {
+            val sslContext = SSLContext.getInstance("TLSv1.2")
+            sslContext.init(null, null, null)
+            val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+            tmf.init(null as KeyStore?)
+            val trustManager = tmf.trustManagers.first { it is X509TrustManager } as X509TrustManager
+            builder.sslSocketFactory(sslContext.socketFactory, trustManager)
+            AppLog.i(TAG, "Conscrypt TLS socket factory installed for API ${Build.VERSION.SDK_INT}")
+        } catch (e: Exception) {
+            AppLog.w(TAG, "Failed to install Conscrypt TLS socket factory", e)
+        }
     }
 }

@@ -17,3 +17,5 @@ local.properties
 *.apk
 keystore/
 docs/
+.claude
+libs/

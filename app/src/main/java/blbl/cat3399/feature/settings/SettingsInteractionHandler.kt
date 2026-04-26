@@ -18,6 +18,7 @@ import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.lifecycle.lifecycleScope
+import blbl.cat3399.core.util.DeviceAbi
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import blbl.cat3399.R
@@ -28,6 +29,8 @@ import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.log.LogExporter
 import blbl.cat3399.core.log.LogUploadClient
 import blbl.cat3399.core.net.BiliClient
+import blbl.cat3399.core.net.cookieExpiresAt
+import blbl.cat3399.core.net.evictConnectionPool
 import blbl.cat3399.core.prefs.AppConfigBackup
 import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.prefs.CustomPageConfig
@@ -488,7 +491,11 @@ class SettingsInteractionHandler(
     ): String {
         val tzId = runCatching { java.util.TimeZone.getDefault().id }.getOrNull().orEmpty()
         val locale = runCatching { Locale.getDefault() }.getOrNull()
-        val localeTag = runCatching { locale?.toLanguageTag() }.getOrNull().orEmpty()
+        val localeTag = if (Build.VERSION.SDK_INT >= 21) {
+            runCatching { locale?.toLanguageTag() }.getOrNull().orEmpty()
+        } else {
+            locale?.toString().orEmpty()
+        }
         val prefs = BiliClient.prefs
 
         val json =
@@ -515,7 +522,7 @@ class SettingsInteractionHandler(
                         .put("model", Build.MODEL)
                         .put("sdk_int", Build.VERSION.SDK_INT)
                         .put("release", Build.VERSION.RELEASE)
-                        .put("abi", Build.SUPPORTED_ABIS.firstOrNull().orEmpty()),
+                        .put("abi", DeviceAbi.getFirstAbi()),
                 )
                 .put(
                     "account",
@@ -647,6 +654,8 @@ class SettingsInteractionHandler(
                     .put("down_key_osd_focus_target", prefs.playerDownKeyOsdFocusTarget)
                     .put("toggle_play_state_show_osd", prefs.playerTogglePlayStateShowOsd)
                     .put("persistent_bottom_progress_enabled", prefs.playerPersistentBottomProgressEnabled)
+                    .put("persistent_clock_enabled", prefs.playerPersistentClockEnabled)
+                    .put("touch_gestures_enabled", prefs.playerTouchGesturesEnabled)
                     .put("playback_mode", prefs.playerPlaybackMode)
                     .put("osd_buttons", osdButtons),
             )
@@ -803,6 +812,12 @@ class SettingsInteractionHandler(
                 renderer.refreshSection(entry.id)
             }
 
+            SettingId.MainAutoHideSidebarOnEnterContent -> {
+                prefs.mainAutoHideSidebarOnEnterContent = !prefs.mainAutoHideSidebarOnEnterContent
+                AppToast.show(activity, "进入内容区后关闭侧边栏：${if (prefs.mainAutoHideSidebarOnEnterContent) "开" else "关"}")
+                renderer.refreshSection(entry.id)
+            }
+
             SettingId.MainBackFocusScheme -> {
                 val options =
                     listOf(
@@ -819,6 +834,27 @@ class SettingsInteractionHandler(
                         ?: blbl.cat3399.core.prefs.AppPrefs.MAIN_BACK_FOCUS_SCHEME_A
                     prefs.mainBackFocusScheme = key
                     AppToast.show(activity, "返回键焦点策略：$selected")
+                    renderer.refreshSection(entry.id)
+                }
+            }
+
+            SettingId.VideoCardLongPressAction -> {
+                val options =
+                    listOf(
+                        AppPrefs.VIDEO_CARD_LONG_PRESS_ACTION_MANUAL to "手动选择",
+                        AppPrefs.VIDEO_CARD_LONG_PRESS_ACTION_WATCH_LATER to "添加到稍后再看",
+                        AppPrefs.VIDEO_CARD_LONG_PRESS_ACTION_OPEN_DETAIL to "进入详情页",
+                        AppPrefs.VIDEO_CARD_LONG_PRESS_ACTION_OPEN_UP to "进入UP主页",
+                        AppPrefs.VIDEO_CARD_LONG_PRESS_ACTION_DISMISS to "不感兴趣",
+                    )
+                showChoiceDialog(
+                    title = "长按视频卡片",
+                    items = options.map { it.second },
+                    current = SettingsText.videoCardLongPressActionText(prefs.videoCardLongPressAction),
+                ) { selected ->
+                    val value = options.firstOrNull { it.second == selected }?.first ?: AppPrefs.VIDEO_CARD_LONG_PRESS_ACTION_MANUAL
+                    prefs.videoCardLongPressAction = value
+                    AppToast.show(activity, "长按视频卡片：$selected")
                     renderer.refreshSection(entry.id)
                 }
             }
@@ -1080,6 +1116,11 @@ class SettingsInteractionHandler(
                 renderer.refreshSection(entry.id)
             }
 
+            SettingId.DanmakuShowHighLikeIcon -> {
+                prefs.danmakuShowHighLikeIcon = !prefs.danmakuShowHighLikeIcon
+                renderer.refreshSection(entry.id)
+            }
+
             SettingId.DanmakuAiShieldEnabled -> {
                 prefs.danmakuAiShieldEnabled = !prefs.danmakuAiShieldEnabled
                 renderer.refreshSection(entry.id)
@@ -1269,6 +1310,11 @@ class SettingsInteractionHandler(
                 }
             }
 
+            SettingId.PlayerSettingsApplyToGlobal -> {
+                prefs.playerSettingsApplyToGlobal = !prefs.playerSettingsApplyToGlobal
+                renderer.refreshSection(entry.id)
+            }
+
             SettingId.SubtitlePreferredLang -> {
                 val options =
                     listOf(
@@ -1431,6 +1477,17 @@ class SettingsInteractionHandler(
                 renderer.refreshSection(entry.id)
             }
 
+            SettingId.PlayerPersistentClockEnabled -> {
+                prefs.playerPersistentClockEnabled = !prefs.playerPersistentClockEnabled
+                renderer.refreshSection(entry.id)
+            }
+
+            SettingId.PlayerTouchGesturesEnabled -> {
+                prefs.playerTouchGesturesEnabled = !prefs.playerTouchGesturesEnabled
+                AppToast.show(activity, "触摸手势：${if (prefs.playerTouchGesturesEnabled) "开" else "关"}")
+                renderer.refreshSection(entry.id)
+            }
+
             SettingId.PlayerVideoShotPreviewSize -> {
                 val options =
                     listOf(
@@ -1447,6 +1504,24 @@ class SettingsInteractionHandler(
                 ) { selected ->
                     val value = options.firstOrNull { it.second == selected }?.first ?: AppPrefs.PLAYER_VIDEOSHOT_PREVIEW_SIZE_MEDIUM
                     prefs.playerVideoShotPreviewSize = value
+                    renderer.refreshSection(entry.id)
+                }
+            }
+
+            SettingId.PlayerStyle -> {
+                val options =
+                    listOf(
+                        AppPrefs.PLAYER_STYLE_FULLSCREEN to "全屏",
+                        AppPrefs.PLAYER_STYLE_HD to "HD",
+                    )
+                val checked = options.indexOfFirst { it.first == prefs.playerStyle }.coerceAtLeast(0)
+                showChoiceDialog(
+                    title = SettingsText.playerStyleTitle(),
+                    items = options.map { it.second },
+                    checkedIndex = checked,
+                ) { selected ->
+                    val value = options.firstOrNull { it.second == selected }?.first ?: AppPrefs.PLAYER_STYLE_FULLSCREEN
+                    prefs.playerStyle = value
                     renderer.refreshSection(entry.id)
                 }
             }
@@ -1483,8 +1558,8 @@ class SettingsInteractionHandler(
     }
 
     private fun evictNetworkConnections() {
-        runCatching { BiliClient.apiOkHttp.connectionPool.evictAll() }
-        runCatching { BiliClient.cdnOkHttp.connectionPool.evictAll() }
+        runCatching { BiliClient.apiOkHttp.evictConnectionPool() }
+        runCatching { BiliClient.cdnOkHttp.evictConnectionPool() }
         runCatching { ApkUpdater.evictConnections() }
     }
 
@@ -2589,8 +2664,8 @@ class SettingsInteractionHandler(
         val prefs = BiliClient.prefs
         val now = System.currentTimeMillis()
         val tokenCookie = BiliClient.cookies.getCookie("x-bili-gaia-vtoken")
-        val tokenOk = tokenCookie != null && tokenCookie.expiresAt > now
-        val expiresAt = tokenCookie?.expiresAt ?: -1L
+        val tokenOk = tokenCookie != null && tokenCookie.cookieExpiresAt() > now
+        val expiresAt = tokenCookie?.cookieExpiresAt() ?: -1L
 
         val vVoucher = prefs.gaiaVgateVVoucher.orEmpty().trim()
         val hasVoucher = vVoucher.isNotBlank()

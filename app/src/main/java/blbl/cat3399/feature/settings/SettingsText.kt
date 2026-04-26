@@ -3,8 +3,9 @@ package blbl.cat3399.feature.settings
 import android.app.ActivityManager
 import android.content.Context
 import android.content.res.Resources
-import blbl.cat3399.core.prefs.PlayerPlaybackModes
+import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.prefs.CustomPageConfig
+import blbl.cat3399.core.prefs.PlayerPlaybackModes
 import blbl.cat3399.feature.custom.CustomPageTabRegistry
 import blbl.cat3399.ui.MainRootNavRegistry
 import java.util.Locale
@@ -43,20 +44,7 @@ object SettingsText {
         return String.format(Locale.US, "%.2f", v.coerceIn(0f, 1.0f))
     }
 
-    fun areaText(area: Float): String =
-        when {
-            area >= 0.99f -> "不限"
-            area >= 0.78f -> "4/5"
-            area >= 0.71f -> "3/4"
-            area >= 0.62f -> "2/3"
-            area >= 0.55f -> "3/5"
-            area >= 0.45f -> "1/2"
-            area >= 0.36f -> "2/5"
-            area >= 0.29f -> "1/3"
-            area >= 0.22f -> "1/4"
-            area >= 0.19f -> "1/5"
-            else -> "1/6"
-        }
+    fun areaText(area: Float): String = "${(AppPrefs.normalizeDanmakuArea(area) * 100f).roundToInt()}%"
 
     fun danmakuLaneDensityText(prefValue: String): String =
         when (prefValue.trim()) {
@@ -102,6 +90,15 @@ object SettingsText {
             else -> "回到当前所属Tab"
         }
 
+    fun videoCardLongPressActionText(prefValue: String): String =
+        when (prefValue) {
+            blbl.cat3399.core.prefs.AppPrefs.VIDEO_CARD_LONG_PRESS_ACTION_WATCH_LATER -> "添加到稍后再看"
+            blbl.cat3399.core.prefs.AppPrefs.VIDEO_CARD_LONG_PRESS_ACTION_OPEN_DETAIL -> "进入详情页"
+            blbl.cat3399.core.prefs.AppPrefs.VIDEO_CARD_LONG_PRESS_ACTION_OPEN_UP -> "进入UP主页"
+            blbl.cat3399.core.prefs.AppPrefs.VIDEO_CARD_LONG_PRESS_ACTION_DISMISS -> "不感兴趣"
+            else -> "手动选择"
+        }
+
     fun themePresetText(prefValue: String): String =
         when (prefValue) {
             blbl.cat3399.core.prefs.AppPrefs.THEME_PRESET_TV_PINK -> "小电视粉"
@@ -134,6 +131,14 @@ object SettingsText {
             blbl.cat3399.core.prefs.AppPrefs.PLAYER_VIDEOSHOT_PREVIEW_SIZE_SMALL -> "小"
             blbl.cat3399.core.prefs.AppPrefs.PLAYER_VIDEOSHOT_PREVIEW_SIZE_LARGE -> "大"
             else -> "中"
+        }
+
+    fun playerStyleTitle(): String = "播放器样式"
+
+    fun playerStyleText(code: String): String =
+        when (code) {
+            blbl.cat3399.core.prefs.AppPrefs.PLAYER_STYLE_HD -> "HD"
+            else -> "全屏"
         }
 
     fun renderViewText(code: String): String =

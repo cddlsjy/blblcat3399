@@ -14,7 +14,6 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.TransferListener
-import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -37,7 +36,6 @@ import blbl.cat3399.feature.player.CdnFailoverState
 import blbl.cat3399.feature.player.DebugStreamKind
 import blbl.cat3399.feature.player.Playable
 import blbl.cat3399.feature.player.AudioBalanceLevel
-import okhttp3.OkHttpClient
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.util.Locale
@@ -60,7 +58,6 @@ internal data class LiveHlsDebugInfo(
 
 internal class ExoPlayerEngine(
     context: Context,
-    private val okHttpClient: OkHttpClient = BiliClient.cdnOkHttp,
     private val onTransferHost: ((kind: DebugStreamKind, host: String) -> Unit)? = null,
     private val onBytesTransferred: ((kind: DebugStreamKind, bytesTransferred: Long) -> Unit)? = null,
     private val onLiveHlsDebugInfo: ((LiveHlsDebugInfo) -> Unit)? = null,
@@ -242,7 +239,7 @@ internal class ExoPlayerEngine(
                 override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
             }
 
-        val upstream = OkHttpDataSource.Factory(okHttpClient).setTransferListener(listener)
+        val upstream = createHttpDataSourceFactory(transferListener = listener)
         val uris =
             urlCandidates
                 .orEmpty()

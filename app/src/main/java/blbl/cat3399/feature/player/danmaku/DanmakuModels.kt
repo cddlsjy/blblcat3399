@@ -48,6 +48,7 @@ data class DanmakuConfig(
     val speedLevel: Int,
     val area: Float,
     val laneDensity: DanmakuLaneDensity,
+    val showHighLikeIcon: Boolean,
 )
 
 data class DanmakuSessionSettings(
@@ -60,6 +61,7 @@ data class DanmakuSessionSettings(
     val area: Float,
     val laneDensity: DanmakuLaneDensity,
     val followBiliShield: Boolean = true,
+    val showHighLikeIcon: Boolean = true,
     val aiShieldEnabled: Boolean = false,
     val aiShieldLevel: Int = 3,
     val allowScroll: Boolean = true,
@@ -78,5 +80,6 @@ data class DanmakuSessionSettings(
             speedLevel = speedLevel,
             area = area,
             laneDensity = laneDensity,
+            showHighLikeIcon = showHighLikeIcon,
         )
 }

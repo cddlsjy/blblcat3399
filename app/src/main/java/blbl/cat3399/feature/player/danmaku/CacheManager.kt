@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.graphics.drawable.DrawableCompat
 import blbl.cat3399.BlblApp
 import blbl.cat3399.R
 import android.os.Handler
@@ -32,6 +33,7 @@ internal data class CacheStyle(
     val fontWeight: DanmakuFontWeight,
     val strokeWidthPx: Float,
     val outlinePadPx: Float,
+    val showHighLikeIcon: Boolean,
     val generation: Int,
 )
 
@@ -94,7 +96,7 @@ internal class CacheManager(
     private val emoteRect = RectF()
     private val inlineLikeIcon by lazy(LazyThreadSafetyMode.NONE) {
         AppCompatResources.getDrawable(BlblApp.instance, R.drawable.ic_action_like)?.mutate()?.apply {
-            setTint(HIGH_LIKE_ICON_COLOR)
+            DrawableCompat.setTint(DrawableCompat.wrap(this), HIGH_LIKE_ICON_COLOR)
         }
     }
 
@@ -237,7 +239,7 @@ internal class CacheManager(
             val segments =
                 item.inlineSegments
                     ?: run {
-                        val parsed = parseInlineSegments(item)
+                        val parsed = parseInlineSegments(item, style)
                         if (parsed != null && shouldCacheInlineSegments(item)) item.inlineSegments = parsed
                         parsed
                     }
@@ -296,13 +298,16 @@ internal class CacheManager(
         }
     }
 
-    private fun parseInlineSegments(item: DanmakuItem): List<DanmakuInlineSegment>? {
+    private fun parseInlineSegments(
+        item: DanmakuItem,
+        style: CacheStyle,
+    ): List<DanmakuInlineSegment>? {
         val text = item.data.text
         var i = 0
         var lastTextStart = 0
         var hasInline = false
         val out = ArrayList<DanmakuInlineSegment>(8)
-        if (item.data.isHighLiked) {
+        if (style.showHighLikeIcon && item.data.isHighLiked) {
             out.add(DanmakuInlineSegment.HighLikeIcon)
             hasInline = true
         }

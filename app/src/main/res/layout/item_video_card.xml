@@ -6,7 +6,6 @@
     android:layout_margin="@dimen/video_card_margin"
     android:clickable="true"
     android:focusable="true"
-    android:stateListAnimator="@animator/blbl_focus_scale"
     app:cardBackgroundColor="@android:color/transparent"
     app:cardCornerRadius="10dp"
     app:cardElevation="0dp"
@@ -56,6 +55,112 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="@id/guideline_cover_fade_top" />
 
+            <View
+                android:id="@+id/v_action_scrim"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:background="@drawable/bg_video_card_action_scrim"
+                android:importantForAccessibility="no"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <LinearLayout
+                android:id="@+id/ll_actions"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/video_card_action_group_margin_h"
+                android:layout_marginEnd="@dimen/video_card_action_group_margin_h"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <FrameLayout
+                    android:id="@+id/btn_action_watch_later"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/video_card_action_button_height"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_video_card_action_button"
+                    android:clickable="true"
+                    android:focusable="false">
+
+                    <ImageView
+                        android:id="@+id/iv_action_watch_later"
+                        android:layout_width="@dimen/video_card_action_icon_watch_later_size"
+                        android:layout_height="@dimen/video_card_action_icon_watch_later_size"
+                        android:layout_gravity="center"
+                        android:contentDescription="@string/video_card_action_watch_later"
+                        app:srcCompat="@drawable/ic_video_card_watch_later"
+                        app:tint="@android:color/white" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/btn_action_detail"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/video_card_action_button_height"
+                    android:layout_marginStart="@dimen/video_card_action_gap"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_video_card_action_button"
+                    android:clickable="true"
+                    android:focusable="false">
+
+                    <ImageView
+                        android:id="@+id/iv_action_detail"
+                        android:layout_width="@dimen/video_card_action_icon_detail_size"
+                        android:layout_height="@dimen/video_card_action_icon_detail_size"
+                        android:layout_gravity="center"
+                        android:contentDescription="@string/video_card_action_open_detail"
+                        app:srcCompat="@drawable/ic_player_detail"
+                        app:tint="@android:color/white" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/btn_action_up"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/video_card_action_button_height"
+                    android:layout_marginStart="@dimen/video_card_action_gap"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_video_card_action_button"
+                    android:clickable="true"
+                    android:focusable="false">
+
+                    <ImageView
+                        android:id="@+id/iv_action_up"
+                        android:layout_width="@dimen/video_card_action_icon_up_size"
+                        android:layout_height="@dimen/video_card_action_icon_up_size"
+                        android:layout_gravity="center"
+                        android:contentDescription="@string/video_card_action_open_up"
+                        app:srcCompat="@drawable/ic_player_up"
+                        app:tint="@android:color/white" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/btn_action_dismiss"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/video_card_action_button_height"
+                    android:layout_marginStart="@dimen/video_card_action_gap"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_video_card_action_button"
+                    android:clickable="true"
+                    android:focusable="false">
+
+                    <ImageView
+                        android:id="@+id/iv_action_dismiss"
+                        android:layout_width="@dimen/video_card_action_icon_dismiss_size"
+                        android:layout_height="@dimen/video_card_action_icon_dismiss_size"
+                        android:layout_gravity="center"
+                        android:contentDescription="@string/video_card_action_not_interested"
+                        app:srcCompat="@drawable/ic_video_card_delete"
+                        app:tint="@android:color/white" />
+                </FrameLayout>
+            </LinearLayout>
+
             <ProgressBar
                 android:id="@+id/progress_watch"
                 style="?android:attr/progressBarStyleHorizontal"
@@ -90,8 +195,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_margin="@dimen/video_card_text_margin"
-                android:paddingHorizontal="@dimen/video_card_duration_padding_h"
-                android:paddingVertical="@dimen/video_card_duration_padding_v"
+                android:paddingLeft="@dimen/video_card_duration_padding_h"
+                android:paddingTop="@dimen/video_card_duration_padding_v"
+                android:paddingRight="@dimen/video_card_duration_padding_h"
+                android:paddingBottom="@dimen/video_card_duration_padding_v"
                 android:shadowColor="#CC000000"
                 android:shadowDx="0"
                 android:shadowDy="1"
@@ -110,8 +217,10 @@
                 android:layout_margin="@dimen/video_card_text_margin"
                 android:background="@drawable/bg_pgc_access_badge"
                 android:gravity="center"
-                android:paddingHorizontal="@dimen/video_card_duration_padding_h"
-                android:paddingVertical="@dimen/video_card_duration_padding_v"
+                android:paddingLeft="@dimen/video_card_duration_padding_h"
+                android:paddingTop="@dimen/video_card_duration_padding_v"
+                android:paddingRight="@dimen/video_card_duration_padding_h"
+                android:paddingBottom="@dimen/video_card_duration_padding_v"
                 android:text="@string/badge_charging"
                 android:textColor="@android:color/white"
                 android:textSize="@dimen/video_card_duration_text_size"
@@ -125,8 +234,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_margin="@dimen/video_card_text_margin"
-                android:paddingHorizontal="@dimen/video_card_duration_padding_h"
-                android:paddingVertical="@dimen/video_card_duration_padding_v"
+                android:paddingLeft="@dimen/video_card_duration_padding_h"
+                android:paddingTop="@dimen/video_card_duration_padding_v"
+                android:paddingRight="@dimen/video_card_duration_padding_h"
+                android:paddingBottom="@dimen/video_card_duration_padding_v"
                 android:shadowColor="#CC000000"
                 android:shadowDx="0"
                 android:shadowDy="1"
@@ -141,8 +252,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_margin="@dimen/video_card_text_margin"
-                android:paddingHorizontal="@dimen/video_card_duration_padding_h"
-                android:paddingVertical="@dimen/video_card_duration_padding_v"
+                android:paddingLeft="@dimen/video_card_duration_padding_h"
+                android:paddingTop="@dimen/video_card_duration_padding_v"
+                android:paddingRight="@dimen/video_card_duration_padding_h"
+                android:paddingBottom="@dimen/video_card_duration_padding_v"
                 android:shadowColor="#CC000000"
                 android:shadowDx="0"
                 android:shadowDy="1"
@@ -159,8 +272,10 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="@dimen/video_card_text_margin"
                 android:orientation="horizontal"
-                android:paddingHorizontal="@dimen/video_card_duration_padding_h"
-                android:paddingVertical="@dimen/video_card_duration_padding_v"
+                android:paddingLeft="@dimen/video_card_duration_padding_h"
+                android:paddingTop="@dimen/video_card_duration_padding_v"
+                android:paddingRight="@dimen/video_card_duration_padding_h"
+                android:paddingBottom="@dimen/video_card_duration_padding_v"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintStart_toStartOf="parent">
 
@@ -170,7 +285,7 @@
                     android:layout_height="@dimen/video_card_stat_icon_size"
                     android:layout_gravity="center_vertical"
                     android:contentDescription="@string/app_name"
-                    android:src="@drawable/ic_stat_play" />
+                    app:srcCompat="@drawable/ic_stat_play" />
 
                 <TextView
                     android:id="@+id/tv_view"
@@ -191,7 +306,7 @@
                     android:layout_marginStart="10dp"
                     android:layout_gravity="center_vertical"
                     android:contentDescription="@string/app_name"
-                    android:src="@drawable/ic_stat_danmaku" />
+                    app:srcCompat="@drawable/ic_stat_danmaku" />
 
                 <TextView
                     android:id="@+id/tv_danmaku"
@@ -229,7 +344,8 @@
             android:id="@+id/ll_subtitle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="@dimen/video_card_text_margin"
+            android:layout_marginStart="@dimen/video_card_text_margin"
+            android:layout_marginEnd="@dimen/video_card_text_margin"
             android:layout_marginBottom="@dimen/video_card_text_margin"
             android:orientation="horizontal"
             app:layout_constraintBottom_toBottomOf="parent"

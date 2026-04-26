@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.util.DisplayMetrics
 import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -20,13 +21,15 @@ import android.view.ViewGroup
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.widget.ImageViewCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
@@ -53,6 +56,7 @@ import blbl.cat3399.core.ui.popup.PopupHost
 import blbl.cat3399.databinding.ActivityPlayerBinding
 import blbl.cat3399.databinding.DialogLiveChatBinding
 import blbl.cat3399.feature.player.AudioBalanceLevel
+import blbl.cat3399.feature.player.PlayerCustomShortcutInputPolicy
 import blbl.cat3399.feature.player.PlayerDebugMetrics
 import blbl.cat3399.feature.player.PlayerOsdSizing
 import blbl.cat3399.feature.player.PlayerSettingsAdapter
@@ -89,7 +93,21 @@ private object LivePlayerSettingKeys {
 }
 
 class LivePlayerActivity : BaseActivity() {
-    override fun shouldRecreateOnUiScaleChange(): Boolean = false
+    private data class ViewPaddingState(
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int,
+    )
+
+    private data class ViewMarginState(
+        val start: Int,
+        val top: Int,
+        val end: Int,
+        val bottom: Int,
+    )
+
+    override fun shouldRecreateOnUiScaleChange(): Boolean = true
 
     private lateinit var binding: ActivityPlayerBinding
     private var player: BlblPlayerEngine? = null
@@ -141,20 +159,29 @@ class LivePlayerActivity : BaseActivity() {
     private var messageClient: LiveMessageClient? = null
     private var liveDanmakuBaseUptimeMs: Long = 0L
     private var liveDanmakuLastAppendMs: Int = Int.MIN_VALUE
+    private var topBarBasePadding = ViewPaddingState(0, 0, 0, 0)
+    private var bottomBarBasePadding = ViewPaddingState(0, 0, 0, 0)
+    private var settingsPanelBaseMargins = ViewMarginState(0, 0, 0, 0)
+    private var seekHintBaseMargins = ViewMarginState(0, 0, 0, 0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         PlayerOsdSizing.applyTheme(this)
         val prefs = BiliClient.prefs
+        val playerInflater = PlayerOsdSizing.cloneInflater(this, layoutInflater)
         val root =
-            layoutInflater.inflate(
+            playerInflater.inflate(
                 if (prefs.playerRenderViewType == AppPrefs.PLAYER_RENDER_VIEW_TEXTURE_VIEW) blbl.cat3399.R.layout.activity_player_texture else blbl.cat3399.R.layout.activity_player,
                 null,
             )
         binding = ActivityPlayerBinding.bind(root)
         setContentView(binding.root)
-        Immersive.apply(this, prefs.fullscreenEnabled)
+        applyPostInflateCompatUi()
+        Immersive.apply(this, prefs.fullscreenEnabled, playerScreen = true)
+        Immersive.setupKeepHidden(this) { BiliClient.prefs.fullscreenEnabled }
         PlayerUiMode.applyLive(this, binding)
+        captureSystemBarAvoidanceBaseState()
+        installSystemBarAvoidance()
         resetBufferingOverlayState()
 
         roomId = intent.getLongExtra(EXTRA_ROOM_ID, 0L)
@@ -210,11 +237,12 @@ class LivePlayerActivity : BaseActivity() {
 
         val desiredEngineKind = session.engineKind
         val engineKind =
-            if (desiredEngineKind == PlayerEngineKind.IjkPlayer && !IjkPlayerPlugin.isInstalled(this)) {
-                AppToast.showLong(this, "IjkPlayer 插件未安装，已回退到 ExoPlayer")
-                PlayerEngineKind.ExoPlayer
-            } else {
-                desiredEngineKind
+            when {
+                desiredEngineKind == PlayerEngineKind.IjkPlayer && !IjkPlayerPlugin.isInstalled(this) -> {
+                    AppToast.showLong(this, "IjkPlayer 插件未安装，已回退到 ExoPlayer")
+                    PlayerEngineKind.ExoPlayer
+                }
+                else -> desiredEngineKind
             }
         if (session.engineKind != engineKind) {
             session = session.copy(engineKind = engineKind)
@@ -383,11 +411,214 @@ class LivePlayerActivity : BaseActivity() {
         super.onResume()
         PlayerOsdSizing.applyTheme(this)
         PlayerUiMode.applyLive(this, binding)
+        captureSystemBarAvoidanceBaseState()
+        if (Build.VERSION.SDK_INT < 21) {
+            applyLegacySystemBarAvoidance()
+        } else {
+            ViewCompat.requestApplyInsets(binding.root)
+        }
+    }
+
+    private fun captureSystemBarAvoidanceBaseState() {
+        topBarBasePadding = binding.topBar.capturePaddingState()
+        bottomBarBasePadding = binding.bottomBar.capturePaddingState()
+        settingsPanelBaseMargins = binding.settingsPanel.captureMarginState()
+        seekHintBaseMargins = binding.tvSeekHint.captureMarginState()
+    }
+
+    private fun installSystemBarAvoidance() {
+        if (Build.VERSION.SDK_INT < 21) {
+            applyLegacySystemBarAvoidance()
+            return
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
+            val navInsets = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.navigationBars())
+            val topInsets = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
+
+            binding.topBar.applyPaddingState(
+                topBarBasePadding,
+                extraLeft = navInsets.left,
+                extraTop = topInsets.top,
+                extraRight = navInsets.right,
+            )
+            binding.bottomBar.applyPaddingState(
+                bottomBarBasePadding,
+                extraLeft = navInsets.left,
+                extraRight = navInsets.right,
+                extraBottom = navInsets.bottom,
+            )
+            binding.settingsPanel.applyMarginState(
+                settingsPanelBaseMargins,
+                extraTop = topInsets.top,
+                extraEnd = navInsets.right,
+                extraBottom = navInsets.bottom,
+            )
+            binding.tvSeekHint.applyMarginState(
+                seekHintBaseMargins,
+                extraStart = navInsets.left,
+                extraEnd = navInsets.right,
+                extraBottom = navInsets.bottom,
+            )
+            insets
+        }
+        ViewCompat.requestApplyInsets(binding.root)
+    }
+
+    private fun applyLegacySystemBarAvoidance() {
+        val topInset = getSystemBarDimension("status_bar_height")
+        val (navRightInset, navBottomInset) = getLegacyNavigationBarInsets()
+
+        binding.topBar.applyPaddingState(
+            topBarBasePadding,
+            extraTop = topInset,
+            extraRight = navRightInset,
+        )
+        binding.bottomBar.applyPaddingState(
+            bottomBarBasePadding,
+            extraRight = navRightInset,
+            extraBottom = navBottomInset,
+        )
+        binding.settingsPanel.applyMarginState(
+            settingsPanelBaseMargins,
+            extraTop = topInset,
+            extraEnd = navRightInset,
+            extraBottom = navBottomInset,
+        )
+        binding.tvSeekHint.applyMarginState(
+            seekHintBaseMargins,
+            extraEnd = navRightInset,
+            extraBottom = navBottomInset,
+        )
+    }
+
+    private fun getLegacyNavigationBarInsets(): Pair<Int, Int> {
+        if (!hasLegacyNavigationBar()) return 0 to 0
+        val (widthDiff, heightDiff) = getLegacyNavigationBarMetricDiff()
+        val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val navWidth = getSystemBarDimension("navigation_bar_width")
+        val navHeightPortrait = getSystemBarDimension("navigation_bar_height")
+        val navHeightLandscape = getSystemBarDimension("navigation_bar_height_landscape")
+        val result =
+            if (widthDiff > 0 || heightDiff > 0) {
+                when {
+                    widthDiff > 0 && heightDiff <= 0 -> widthDiff to 0
+                    heightDiff > 0 -> 0 to heightDiff
+                    else -> 0 to 0
+                }
+            } else if (isLandscape) {
+                when {
+                    navWidth > 0 -> navWidth to 0
+                    navHeightLandscape > 0 -> 0 to navHeightLandscape
+                    navHeightPortrait > 0 -> 0 to navHeightPortrait
+                    else -> 0 to 0
+                }
+            } else {
+                0 to navHeightPortrait
+            }
+        return result
+    }
+
+    private fun getLegacyNavigationBarMetricDiff(): Pair<Int, Int> {
+        val realMetrics = DisplayMetrics()
+        val displayMetrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay?.let { display ->
+            @Suppress("DEPRECATION")
+            display.getRealMetrics(realMetrics)
+            @Suppress("DEPRECATION")
+            display.getMetrics(displayMetrics)
+        }
+        return (realMetrics.widthPixels - displayMetrics.widthPixels).coerceAtLeast(0) to
+            (realMetrics.heightPixels - displayMetrics.heightPixels).coerceAtLeast(0)
+    }
+
+    private fun hasLegacyNavigationBar(): Boolean {
+        val configId = resources.getIdentifier("config_showNavigationBar", "bool", "android")
+        if (configId != 0 && !resources.getBoolean(configId)) return false
+        val realMetrics = DisplayMetrics()
+        val displayMetrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay?.let { display ->
+            @Suppress("DEPRECATION")
+            display.getRealMetrics(realMetrics)
+            @Suppress("DEPRECATION")
+            display.getMetrics(displayMetrics)
+        }
+        val hasNav =
+            realMetrics.widthPixels > displayMetrics.widthPixels ||
+                realMetrics.heightPixels > displayMetrics.heightPixels ||
+                configId != 0
+        return hasNav
+    }
+
+    private fun getSystemBarDimension(name: String): Int {
+        val resId = resources.getIdentifier(name, "dimen", "android")
+        return if (resId != 0) resources.getDimensionPixelSize(resId) else 0
+    }
+
+    private fun View.capturePaddingState(): ViewPaddingState =
+        ViewPaddingState(
+            left = paddingLeft,
+            top = paddingTop,
+            right = paddingRight,
+            bottom = paddingBottom,
+        )
+
+    private fun View.captureMarginState(): ViewMarginState {
+        val lp = layoutParams as? MarginLayoutParams
+        return ViewMarginState(
+            start = lp?.marginStart ?: 0,
+            top = lp?.topMargin ?: 0,
+            end = lp?.marginEnd ?: 0,
+            bottom = lp?.bottomMargin ?: 0,
+        )
+    }
+
+    private fun View.applyPaddingState(
+        base: ViewPaddingState,
+        extraLeft: Int = 0,
+        extraTop: Int = 0,
+        extraRight: Int = 0,
+        extraBottom: Int = 0,
+    ) {
+        setPadding(
+            base.left + extraLeft,
+            base.top + extraTop,
+            base.right + extraRight,
+            base.bottom + extraBottom,
+        )
+    }
+
+    private fun View.applyMarginState(
+        base: ViewMarginState,
+        extraStart: Int = 0,
+        extraTop: Int = 0,
+        extraEnd: Int = 0,
+        extraBottom: Int = 0,
+    ) {
+        val lp = layoutParams as? MarginLayoutParams ?: return
+        val nextStart = base.start + extraStart
+        val nextTop = base.top + extraTop
+        val nextEnd = base.end + extraEnd
+        val nextBottom = base.bottom + extraBottom
+        if (
+            lp.marginStart == nextStart &&
+            lp.topMargin == nextTop &&
+            lp.marginEnd == nextEnd &&
+            lp.bottomMargin == nextBottom
+        ) {
+            return
+        }
+        lp.marginStart = nextStart
+        lp.topMargin = nextTop
+        lp.marginEnd = nextEnd
+        lp.bottomMargin = nextBottom
+        layoutParams = lp
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
+        if (hasFocus) Immersive.apply(this, BiliClient.prefs.fullscreenEnabled, playerScreen = true)
     }
 
     override fun onDestroy() {
@@ -658,24 +889,25 @@ class LivePlayerActivity : BaseActivity() {
         val keyCode = event.keyCode
         if (keyCode <= 0 || keyCode == KeyEvent.KEYCODE_UNKNOWN) return false
         if (PlayerCustomShortcutsStore.isForbiddenKeyCode(keyCode)) return false
-
-        // Keep DPAD navigation working inside settings panel.
-        if (binding.settingsPanel.visibility == View.VISIBLE) {
-            when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_UP,
-                KeyEvent.KEYCODE_DPAD_DOWN,
-                KeyEvent.KEYCODE_DPAD_LEFT,
-                KeyEvent.KEYCODE_DPAD_RIGHT,
-                KeyEvent.KEYCODE_DPAD_CENTER,
-                KeyEvent.KEYCODE_ENTER,
-                KeyEvent.KEYCODE_NUMPAD_ENTER,
-                -> return false
-            }
+        if (
+            !PlayerCustomShortcutInputPolicy.canDispatchInLive(
+                hasInteractiveOsd = controlsVisible,
+                hasSettingsPanel = binding.settingsPanel.visibility == View.VISIBLE,
+            )
+        ) {
+            return false
         }
 
         val binding = BiliClient.prefs.playerCustomShortcuts.firstOrNull { it.keyCode == keyCode } ?: return false
 
         when (val action = binding.action) {
+            PlayerCustomShortcutAction.ShowOsd -> {
+                noteUserInteraction()
+                setControlsVisible(true)
+                focusFirstControl()
+                return true
+            }
+
             PlayerCustomShortcutAction.ToggleDanmaku -> {
                 noteUserInteraction()
                 session = session.copy(danmaku = session.danmaku.copy(enabled = !session.danmaku.enabled))
@@ -739,7 +971,7 @@ class LivePlayerActivity : BaseActivity() {
 
             is PlayerCustomShortcutAction.SetDanmakuArea -> {
                 noteUserInteraction()
-                val target = action.area.takeIf { it.isFinite() }?.coerceIn(0.05f, 1.0f) ?: session.danmaku.area
+                val target = action.area.takeIf { it.isFinite() }?.let(AppPrefs::normalizeLegacyDanmakuAreaCompat) ?: session.danmaku.area
                 val current = session.danmaku.area
                 val next =
                     if (sameFloat(current, target)) {
@@ -1518,8 +1750,14 @@ class LivePlayerActivity : BaseActivity() {
     }
 
     private fun updateDanmakuButton() {
-        binding.btnDanmaku.imageTintList = null
-        binding.btnDanmaku.isSelected = session.danmaku.enabled
+        ImageViewCompat.setImageTintList(binding.btnDanmaku, null)
+        if (Build.VERSION.SDK_INT < 21) {
+            // API 19: selector with vector items not supported; swap icon manually
+            val res = if (session.danmaku.enabled) R.drawable.ic_player_danmaku_on else R.drawable.ic_player_danmaku_off
+            binding.btnDanmaku.setImageDrawable(androidx.appcompat.content.res.AppCompatResources.getDrawable(this, res))
+        } else {
+            binding.btnDanmaku.isSelected = session.danmaku.enabled
+        }
     }
 
     private fun updateDebugOverlay() {
@@ -1867,7 +2105,7 @@ class LivePlayerActivity : BaseActivity() {
         val restoredDanmakuFontWeight = DanmakuFontWeight.fromPrefValue(obj.optString("danmakuFontWeight", danmaku.fontWeight.prefValue))
         val restoredDanmakuStrokeWidthPx = normalizeDanmakuStrokeWidthPx(optInt("danmakuStrokeWidthPx", danmaku.strokeWidthPx))
         val restoredDanmakuSpeedLevel = optInt("danmakuSpeedLevel", danmaku.speedLevel).coerceIn(1, 10)
-        val restoredDanmakuArea = optFloat("danmakuArea", danmaku.area).coerceIn(0.05f, 1.0f)
+        val restoredDanmakuArea = AppPrefs.normalizeLegacyDanmakuAreaCompat(optFloat("danmakuArea", danmaku.area))
         val restoredDanmakuLaneDensity = DanmakuLaneDensity.fromPrefValue(obj.optString("danmakuLaneDensity", danmaku.laneDensity.prefValue))
         val restoredDebugEnabled = obj.optBoolean("debugEnabled", debugEnabled)
 
@@ -1911,6 +2149,28 @@ class LivePlayerActivity : BaseActivity() {
             ),
         val debugEnabled: Boolean = BiliClient.prefs.playerDebugEnabled,
     )
+
+    private fun applyPostInflateCompatUi() {
+        if (Build.VERSION.SDK_INT >= 21) {
+            val tint = ContextCompat.getColorStateList(this, R.color.blbl_text)
+            binding.progressBuffering.indeterminateTintList = tint
+            binding.progressBuffering.indeterminateTintMode = android.graphics.PorterDuff.Mode.SRC_IN
+            binding.videoShotPreview.clipToOutline = true
+            binding.videoShotPreview.elevation = resources.getDimension(R.dimen.player_videoshot_preview_elevation)
+            binding.commentImageViewer.elevation = 20f * resources.displayMetrics.density
+            binding.btnUpQuickProfile.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.btnUpQuickFollow.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.tabPageList.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.tabPartsList.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.tabRecommendList.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.chipCommentSortHot.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.chipCommentSortNew.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+        }
+        if (Build.VERSION.SDK_INT >= 26) {
+            binding.root.defaultFocusHighlightEnabled = false
+            binding.commentImageViewer.defaultFocusHighlightEnabled = false
+        }
+    }
 
     companion object {
         const val EXTRA_ROOM_ID = "room_id"

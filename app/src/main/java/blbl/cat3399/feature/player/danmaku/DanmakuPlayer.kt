@@ -370,6 +370,7 @@ internal class DanmakuPlayer(
                         topInsetPx = viewportTopInsetPx,
                         bottomInsetPx = viewportBottomInsetPx,
                     )
+                    engineAction.seekTo(engineAction.currentPositionMs())
                     renderOnceIfPaused()
                 }
 

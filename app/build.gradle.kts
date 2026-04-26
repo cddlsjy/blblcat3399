@@ -18,7 +18,7 @@ android {
 
     defaultConfig {
         applicationId = "blbl.cat3399"
-        minSdk = 21
+        minSdk = 19
         targetSdk = 36
         versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 1
         versionName = project.findProperty("versionName") as String? ?: "0.1.0"
@@ -26,6 +26,8 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        multiDexEnabled = true
     }
 
     signingConfigs {
@@ -49,6 +51,20 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+    }
+
+    flavorDimensions += "api"
+    productFlavors {
+        create("kitkat") {
+            dimension = "api"
+            minSdk = 19
+            applicationIdSuffix = ".kitkat"
+            versionNameSuffix = "-kitkat"
+        }
+        create("lollipopplus") {
+            dimension = "api"
+            minSdk = 21
         }
     }
 
@@ -76,8 +92,23 @@ android {
             )
         }
         jniLibs {
-            // IjkPlayer native libs are shipped as an on-demand plugin (downloaded when needed).
+            // libijkplayer.so is excluded by default (downloaded on demand).
+            // The kitkat flavor will override this via androidComponents.onVariants.
             excludes += setOf("**/libijkplayer.so")
+        }
+    }
+
+    // Configure per-variant packaging for kitkat flavor
+    androidComponents {
+        onVariants { variant ->
+            if (variant.flavorName == "kitkat") {
+                // API 19 devices are 32-bit ARM only; include libijkplayer.so but strip other ABIs
+                variant.packaging.jniLibs.excludes.set(setOf(
+                    "**/arm64-v8a/**",
+                    "**/x86/**",
+                    "**/x86_64/**",
+                ))
+            }
         }
     }
 }
@@ -100,6 +131,7 @@ protobuf {
 dependencies {
     implementation(files("libs/ijkplayer-cmake-release.aar"))
 
+    implementation("androidx.multidex:multidex:2.0.1")
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.12.0")
@@ -111,13 +143,22 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.brotli:dec:0.1.2")
+    "kitkatImplementation"("org.conscrypt:conscrypt-android:2.5.2")
 
-    implementation("androidx.media3:media3-exoplayer:1.8.0")
-    implementation("androidx.media3:media3-exoplayer-hls:1.8.0")
-    implementation("androidx.media3:media3-ui:1.8.0")
-    implementation("androidx.media3:media3-datasource-okhttp:1.8.0")
+    "kitkatImplementation"("com.squareup.okhttp3:okhttp:3.12.13")
+    "lollipopplusImplementation"("com.squareup.okhttp3:okhttp:4.12.0")
+
+    "kitkatImplementation"("androidx.media3:media3-exoplayer:1.4.1")
+    "kitkatImplementation"("androidx.media3:media3-exoplayer-hls:1.4.1")
+    "kitkatImplementation"("androidx.media3:media3-ui:1.4.1")
+    "kitkatImplementation"("androidx.media3:media3-datasource:1.4.1")
+
+    "lollipopplusImplementation"("androidx.media3:media3-exoplayer:1.8.0")
+    "lollipopplusImplementation"("androidx.media3:media3-exoplayer-hls:1.8.0")
+    "lollipopplusImplementation"("androidx.media3:media3-ui:1.8.0")
+    "lollipopplusImplementation"("androidx.media3:media3-datasource:1.8.0")
+    "lollipopplusImplementation"("androidx.media3:media3-datasource-okhttp:1.8.0")
 
     implementation("com.google.protobuf:protobuf-javalite:3.25.3")
     implementation("com.google.zxing:core:3.5.3")

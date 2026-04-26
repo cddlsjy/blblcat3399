@@ -1,5 +1,6 @@
 package blbl.cat3399.feature.player
 
+import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.prefs.PlayerCustomShortcutAction
 import blbl.cat3399.core.prefs.PlayerCustomShortcutOpenVideoListTarget
 import blbl.cat3399.core.prefs.PlayerPlaybackModes
@@ -29,6 +30,7 @@ internal object PlayerCustomShortcutCatalog {
             PlayerCustomShortcutActionOption(PlayerCustomShortcutAction.TYPE_OPEN_VIDEO_LIST, "打开视频列表", requiresValue = true),
             PlayerCustomShortcutActionOption(PlayerCustomShortcutAction.TYPE_OPEN_COMMENTS, "打开评论", requiresValue = false),
             PlayerCustomShortcutActionOption(PlayerCustomShortcutAction.TYPE_OPEN_SETTINGS, "打开设置", requiresValue = false),
+            PlayerCustomShortcutActionOption(PlayerCustomShortcutAction.TYPE_SHOW_OSD, "呼出 OSD", requiresValue = false),
             PlayerCustomShortcutActionOption(PlayerCustomShortcutAction.TYPE_TOGGLE_PLAY_PAUSE, "播放/暂停", requiresValue = false),
             PlayerCustomShortcutActionOption(PlayerCustomShortcutAction.TYPE_PLAY_PREVIOUS, "上一个", requiresValue = false),
             PlayerCustomShortcutActionOption(PlayerCustomShortcutAction.TYPE_PLAY_NEXT, "下一个", requiresValue = false),
@@ -64,6 +66,7 @@ internal object PlayerCustomShortcutCatalog {
         return when (type) {
             PlayerCustomShortcutAction.TYPE_OPEN_COMMENTS -> PlayerCustomShortcutAction.OpenComments
             PlayerCustomShortcutAction.TYPE_OPEN_SETTINGS -> PlayerCustomShortcutAction.OpenSettings
+            PlayerCustomShortcutAction.TYPE_SHOW_OSD -> PlayerCustomShortcutAction.ShowOsd
             PlayerCustomShortcutAction.TYPE_TOGGLE_PLAY_PAUSE -> PlayerCustomShortcutAction.TogglePlayPause
             PlayerCustomShortcutAction.TYPE_PLAY_PREVIOUS -> PlayerCustomShortcutAction.PlayPrevious
             PlayerCustomShortcutAction.TYPE_PLAY_NEXT -> PlayerCustomShortcutAction.PlayNext
@@ -85,6 +88,7 @@ internal object PlayerCustomShortcutCatalog {
             is PlayerCustomShortcutAction.OpenVideoList -> "打开视频列表：${openVideoListTargetText(action.target)}"
             PlayerCustomShortcutAction.OpenComments -> "打开评论"
             PlayerCustomShortcutAction.OpenSettings -> "打开设置"
+            PlayerCustomShortcutAction.ShowOsd -> "呼出 OSD"
             PlayerCustomShortcutAction.TogglePlayPause -> "播放/暂停"
             PlayerCustomShortcutAction.PlayPrevious -> "上一个"
             PlayerCustomShortcutAction.PlayNext -> "下一个"
@@ -264,11 +268,11 @@ internal object PlayerCustomShortcutCatalog {
             }
 
             PlayerCustomShortcutAction.TYPE_SET_DANMAKU_AREA -> {
-                val options = listOf(1.0f, 0.8f, 0.75f, 2f / 3f, 0.6f, 0.5f, 0.4f, 1f / 3f, 0.25f, 0.2f, 1f / 6f)
+                val options = PlaybackSettingChoices.danmakuAreas
                 val current = (currentAction as? PlayerCustomShortcutAction.SetDanmakuArea)?.area
-                val checked = options.indices.minByOrNull { idx -> abs(options[idx] - (current ?: 1f)) } ?: 0
+                val checked = options.indices.minByOrNull { idx -> abs(options[idx].first - (current ?: AppPrefs.DANMAKU_AREA_DEFAULT)) } ?: options.lastIndex
                 PlayerCustomShortcutValuePickerConfig(
-                    choices = options.map { PlayerCustomShortcutValueChoice(areaText(it), PlayerCustomShortcutAction.SetDanmakuArea(area = it)) },
+                    choices = options.map { PlayerCustomShortcutValueChoice(it.second, PlayerCustomShortcutAction.SetDanmakuArea(area = it.first)) },
                     checkedIndex = checked,
                 )
             }

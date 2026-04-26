@@ -1,16 +1,23 @@
 package blbl.cat3399.core.prefs
 
 import android.content.Context
+import android.os.Build
 import android.provider.Settings
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import blbl.cat3399.core.tv.isTvDevice
+import blbl.cat3399.core.net.parseHttpUrl
+import blbl.cat3399.core.net.parseHttpUrl
+import blbl.cat3399.core.net.urlFragment
+import blbl.cat3399.core.net.urlQuery
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class AppPrefs(context: Context) {
     private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences("blbl_prefs", Context.MODE_PRIVATE)
+    private val defaultPlayerTouchGesturesEnabled by lazy(LazyThreadSafetyMode.NONE) { !appContext.isTvDevice() }
 
     var disclaimerAccepted: Boolean
         get() = prefs.getBoolean(KEY_DISCLAIMER_ACCEPTED, false)
@@ -188,6 +195,10 @@ class AppPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_DANMAKU_FOLLOW_BILI_SHIELD, true)
         set(value) = prefs.edit().putBoolean(KEY_DANMAKU_FOLLOW_BILI_SHIELD, value).apply()
 
+    var danmakuShowHighLikeIcon: Boolean
+        get() = prefs.getBoolean(KEY_DANMAKU_SHOW_HIGH_LIKE_ICON, true)
+        set(value) = prefs.edit().putBoolean(KEY_DANMAKU_SHOW_HIGH_LIKE_ICON, value).apply()
+
     var danmakuOpacity: Float
         get() = prefs.getFloat(KEY_DANMAKU_OPACITY, 1.0f)
         set(value) = prefs.edit().putFloat(KEY_DANMAKU_OPACITY, value).apply()
@@ -264,8 +275,15 @@ class AppPrefs(context: Context) {
         set(value) = prefs.edit().putInt(KEY_DANMAKU_SPEED, value).apply()
 
     var danmakuArea: Float
-        get() = prefs.getFloat(KEY_DANMAKU_AREA, 1.0f)
-        set(value) = prefs.edit().putFloat(KEY_DANMAKU_AREA, value).apply()
+        get() {
+            val raw = prefs.getFloat(KEY_DANMAKU_AREA, DANMAKU_AREA_DEFAULT)
+            val normalized = normalizeLegacyDanmakuAreaCompat(raw)
+            if (abs(raw - normalized) > DANMAKU_AREA_COMPAT_EPSILON) {
+                prefs.edit().putFloat(KEY_DANMAKU_AREA, normalized).apply()
+            }
+            return normalized
+        }
+        set(value) = prefs.edit().putFloat(KEY_DANMAKU_AREA, normalizeDanmakuArea(value)).apply()
 
     var playerPreferredQn: Int
         get() = prefs.getInt(KEY_PLAYER_PREFERRED_QN, 80)
@@ -309,13 +327,14 @@ class AppPrefs(context: Context) {
 
     var playerEngineKind: String
         get() {
-            val raw = prefs.getString(KEY_PLAYER_ENGINE_KIND, PLAYER_ENGINE_EXO) ?: PLAYER_ENGINE_EXO
+            val defaultEngine = if (Build.VERSION.SDK_INT < 21) PLAYER_ENGINE_IJK else PLAYER_ENGINE_EXO
+            val raw = prefs.getString(KEY_PLAYER_ENGINE_KIND, defaultEngine) ?: defaultEngine
             val v = raw.trim()
             return when (v) {
                 PLAYER_ENGINE_EXO,
                 PLAYER_ENGINE_IJK,
                 -> v
-                else -> PLAYER_ENGINE_EXO
+                else -> defaultEngine
             }
         }
         set(value) {
@@ -326,6 +345,28 @@ class AppPrefs(context: Context) {
                     else -> PLAYER_ENGINE_EXO
                 }
             prefs.edit().putString(KEY_PLAYER_ENGINE_KIND, normalized).apply()
+        }
+
+    var playerStyle: String
+        get() {
+            val raw = prefs.getString(KEY_PLAYER_STYLE, PLAYER_STYLE_FULLSCREEN) ?: PLAYER_STYLE_FULLSCREEN
+            val v = raw.trim()
+            return when (v) {
+                PLAYER_STYLE_FULLSCREEN,
+                PLAYER_STYLE_HD,
+                -> v
+
+                else -> PLAYER_STYLE_FULLSCREEN
+            }
+        }
+        set(value) {
+            val v = value.trim()
+            val normalized =
+                when (v) {
+                    PLAYER_STYLE_HD -> PLAYER_STYLE_HD
+                    else -> PLAYER_STYLE_FULLSCREEN
+                }
+            prefs.edit().putString(KEY_PLAYER_STYLE, normalized).apply()
         }
 
     var playerPreferredAudioId: Int
@@ -470,6 +511,10 @@ class AppPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_TAB_SWITCH_FOLLOWS_FOCUS, true)
         set(value) = prefs.edit().putBoolean(KEY_TAB_SWITCH_FOLLOWS_FOCUS, value).apply()
 
+    var mainAutoHideSidebarOnEnterContent: Boolean
+        get() = prefs.getBoolean(KEY_MAIN_AUTO_HIDE_SIDEBAR_ON_ENTER_CONTENT, false)
+        set(value) = prefs.edit().putBoolean(KEY_MAIN_AUTO_HIDE_SIDEBAR_ON_ENTER_CONTENT, value).apply()
+
     /**
      * Main page (Home/Category/Live/My) "Back" key focus-return scheme.
      *
@@ -507,9 +552,13 @@ class AppPrefs(context: Context) {
                     MAIN_BACK_FOCUS_SCHEME_C,
                     -> v
                     else -> MAIN_BACK_FOCUS_SCHEME_A
-                }
+            }
             prefs.edit().putString(KEY_MAIN_BACK_FOCUS_SCHEME, normalized).apply()
         }
+
+    var videoCardLongPressAction: String
+        get() = normalizeVideoCardLongPressAction(prefs.getString(KEY_VIDEO_CARD_LONG_PRESS_ACTION, VIDEO_CARD_LONG_PRESS_ACTION_MANUAL))
+        set(value) = prefs.edit().putString(KEY_VIDEO_CARD_LONG_PRESS_ACTION, normalizeVideoCardLongPressAction(value)).apply()
 
     var playerDebugEnabled: Boolean
         get() = prefs.getBoolean(KEY_PLAYER_DEBUG, false)
@@ -583,6 +632,17 @@ class AppPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_PLAYER_PERSISTENT_BOTTOM_PROGRESS, false)
         set(value) = prefs.edit().putBoolean(KEY_PLAYER_PERSISTENT_BOTTOM_PROGRESS, value).apply()
 
+    var playerPersistentClockEnabled: Boolean
+        get() = prefs.getBoolean(KEY_PLAYER_PERSISTENT_CLOCK, false)
+        set(value) = prefs.edit().putBoolean(KEY_PLAYER_PERSISTENT_CLOCK, value).apply()
+
+    var playerTouchGesturesEnabled: Boolean
+        get() {
+            if (!prefs.contains(KEY_PLAYER_TOUCH_GESTURES_ENABLED)) return defaultPlayerTouchGesturesEnabled
+            return prefs.getBoolean(KEY_PLAYER_TOUCH_GESTURES_ENABLED, defaultPlayerTouchGesturesEnabled)
+        }
+        set(value) = prefs.edit().putBoolean(KEY_PLAYER_TOUCH_GESTURES_ENABLED, value).apply()
+
     var playerVideoShotPreviewSize: String
         get() {
             val raw = prefs.getString(KEY_PLAYER_VIDEOSHOT_PREVIEW_SIZE, PLAYER_VIDEOSHOT_PREVIEW_SIZE_MEDIUM)
@@ -640,6 +700,10 @@ class AppPrefs(context: Context) {
     var playerPlaybackMode: String
         get() = PlayerPlaybackModes.normalize(prefs.getString(KEY_PLAYER_PLAYBACK_MODE, PLAYER_PLAYBACK_MODE_NONE))
         set(value) = prefs.edit().putString(KEY_PLAYER_PLAYBACK_MODE, PlayerPlaybackModes.normalize(value)).apply()
+
+    var playerSettingsApplyToGlobal: Boolean
+        get() = prefs.getBoolean(KEY_PLAYER_SETTINGS_APPLY_TO_GLOBAL, false)
+        set(value) = prefs.edit().putBoolean(KEY_PLAYER_SETTINGS_APPLY_TO_GLOBAL, value).apply()
 
     var playerOsdButtons: List<String>
         get() {
@@ -843,6 +907,12 @@ class AppPrefs(context: Context) {
         const val MAIN_BACK_FOCUS_SCHEME_B = "B"
         const val MAIN_BACK_FOCUS_SCHEME_C = "C"
 
+        const val VIDEO_CARD_LONG_PRESS_ACTION_MANUAL = "manual"
+        const val VIDEO_CARD_LONG_PRESS_ACTION_WATCH_LATER = "watch_later"
+        const val VIDEO_CARD_LONG_PRESS_ACTION_OPEN_DETAIL = "open_detail"
+        const val VIDEO_CARD_LONG_PRESS_ACTION_OPEN_UP = "open_up"
+        const val VIDEO_CARD_LONG_PRESS_ACTION_DISMISS = "dismiss"
+
         private const val KEY_DISCLAIMER_ACCEPTED = "disclaimer_accepted"
         private const val KEY_WEB_REFRESH_TOKEN = "web_refresh_token"
         private const val KEY_WEB_COOKIE_REFRESH_CHECKED_EPOCH_DAY = "web_cookie_refresh_checked_epoch_day"
@@ -871,6 +941,7 @@ class AppPrefs(context: Context) {
         private const val KEY_DANMAKU_AI_ENABLED = "danmaku_ai_enabled"
         private const val KEY_DANMAKU_AI_LEVEL = "danmaku_ai_level"
         private const val KEY_DANMAKU_FOLLOW_BILI_SHIELD = "danmaku_follow_bili_shield"
+        private const val KEY_DANMAKU_SHOW_HIGH_LIKE_ICON = "danmaku_show_high_like_icon"
         private const val KEY_DANMAKU_OPACITY = "danmaku_opacity"
         private const val KEY_DANMAKU_TEXT_SIZE_SP = "danmaku_text_size_sp"
         private const val KEY_DANMAKU_LANE_DENSITY = "danmaku_lane_density"
@@ -883,6 +954,7 @@ class AppPrefs(context: Context) {
         private const val KEY_PLAYER_CODEC = "player_codec"
         private const val KEY_PLAYER_RENDER_VIEW = "player_render_view"
         private const val KEY_PLAYER_ENGINE_KIND = "player_engine_kind"
+        private const val KEY_PLAYER_STYLE = "player_style"
         private const val KEY_PLAYER_AUDIO_ID = "player_audio_id"
         private const val KEY_PLAYER_CDN_PREFERENCE = "player_cdn_preference"
         private const val KEY_LIVE_HIGH_BITRATE_ENABLED = "live_high_bitrate_enabled"
@@ -901,15 +973,20 @@ class AppPrefs(context: Context) {
         private const val KEY_PLAYER_OPEN_DETAIL_BEFORE_PLAY = "player_open_detail_before_play"
         private const val KEY_FULLSCREEN = "fullscreen_enabled"
         private const val KEY_TAB_SWITCH_FOLLOWS_FOCUS = "tab_switch_follows_focus"
+        private const val KEY_MAIN_AUTO_HIDE_SIDEBAR_ON_ENTER_CONTENT = "main_auto_hide_sidebar_on_enter_content"
         private const val KEY_MAIN_BACK_FOCUS_SCHEME = "main_back_focus_scheme"
+        private const val KEY_VIDEO_CARD_LONG_PRESS_ACTION = "video_card_long_press_action"
         private const val KEY_PLAYER_DEBUG = "player_debug_enabled"
         private const val KEY_PLAYER_DOUBLE_BACK_TO_EXIT = "player_double_back_on_ended"
         private const val KEY_PLAYER_DOWN_KEY_OSD_FOCUS_TARGET = "player_down_key_osd_focus_target"
         private const val KEY_PLAYER_TOGGLE_PLAY_STATE_SHOW_OSD = "player_toggle_play_state_show_osd"
         private const val KEY_PLAYER_PERSISTENT_BOTTOM_PROGRESS = "player_persistent_bottom_progress"
+        private const val KEY_PLAYER_PERSISTENT_CLOCK = "player_persistent_clock"
+        private const val KEY_PLAYER_TOUCH_GESTURES_ENABLED = "player_touch_gestures_enabled"
         private const val KEY_PLAYER_VIDEOSHOT_PREVIEW_SIZE = "player_videoshot_preview_size"
         private const val KEY_PLAYER_AUDIO_BALANCE_LEVEL = "player_audio_balance_level"
         private const val KEY_PLAYER_PLAYBACK_MODE = "player_playback_mode"
+        private const val KEY_PLAYER_SETTINGS_APPLY_TO_GLOBAL = "player_settings_apply_to_global"
         private const val KEY_PLAYER_OSD_BUTTONS = "player_osd_buttons"
         private const val KEY_PLAYER_OSD_BUTTONS_DETAIL_MIGRATED = "player_osd_buttons_detail_migrated"
         private const val KEY_PLAYER_CUSTOM_SHORTCUTS = "player_custom_shortcuts"
@@ -941,6 +1018,62 @@ class AppPrefs(context: Context) {
         const val DANMAKU_LANE_DENSITY_STANDARD = "standard"
         const val DANMAKU_LANE_DENSITY_DENSE = "dense"
 
+        const val DANMAKU_AREA_MIN = 0.10f
+        const val DANMAKU_AREA_MAX = 1.00f
+        const val DANMAKU_AREA_STEP = 0.10f
+        const val DANMAKU_AREA_DEFAULT = DANMAKU_AREA_MAX
+        const val DANMAKU_AREA_COMPAT_EPSILON = 0.0001f
+
+        val DANMAKU_AREA_OPTIONS: List<Float> = (1..10).map { it / 10f }
+
+        private val LEGACY_DANMAKU_AREA_OPTIONS: List<Float> =
+            listOf(
+                1f / 6f,
+                1f / 5f,
+                0.25f,
+                1f / 3f,
+                2f / 5f,
+                0.50f,
+                3f / 5f,
+                2f / 3f,
+                0.75f,
+                4f / 5f,
+                1.00f,
+            )
+
+        fun normalizeDanmakuArea(value: Float): Float {
+            val v = value.takeIf { it.isFinite() } ?: DANMAKU_AREA_DEFAULT
+            val clamped = v.coerceIn(DANMAKU_AREA_MIN, DANMAKU_AREA_MAX)
+            val scaled = (clamped * 100f).roundToInt()
+            val step = (DANMAKU_AREA_STEP * 100f).roundToInt().coerceAtLeast(1)
+            val snapped = ((scaled + step / 2) / step) * step
+            return (snapped / 100f).coerceIn(DANMAKU_AREA_MIN, DANMAKU_AREA_MAX)
+        }
+
+        /**
+         * 0.1.22 生效，3 个版本后移除兼容：
+         * 兼容历史分数档位（1/6、1/5、1/4、1/3、2/5、1/2、3/5、2/3、3/4、4/5、1），
+         * 统一按新的 10% 档位四舍五入吸收到规范值。
+         */
+        fun normalizeLegacyDanmakuAreaCompat(value: Float): Float {
+            val sanitized = value.takeIf { it.isFinite() } ?: DANMAKU_AREA_DEFAULT
+            val legacy =
+                LEGACY_DANMAKU_AREA_OPTIONS.firstOrNull { legacyValue ->
+                    abs(legacyValue - sanitized) < DANMAKU_AREA_COMPAT_EPSILON
+                }
+            return normalizeDanmakuArea(legacy ?: sanitized)
+        }
+
+        fun normalizeVideoCardLongPressAction(value: String?): String {
+            return when (value?.trim()) {
+                VIDEO_CARD_LONG_PRESS_ACTION_WATCH_LATER -> VIDEO_CARD_LONG_PRESS_ACTION_WATCH_LATER
+                VIDEO_CARD_LONG_PRESS_ACTION_OPEN_DETAIL -> VIDEO_CARD_LONG_PRESS_ACTION_OPEN_DETAIL
+                VIDEO_CARD_LONG_PRESS_ACTION_OPEN_UP -> VIDEO_CARD_LONG_PRESS_ACTION_OPEN_UP
+                VIDEO_CARD_LONG_PRESS_ACTION_DISMISS -> VIDEO_CARD_LONG_PRESS_ACTION_DISMISS
+                else -> VIDEO_CARD_LONG_PRESS_ACTION_MANUAL
+            }
+        }
+
         const val DANMAKU_FONT_WEIGHT_NORMAL = "normal"
         const val DANMAKU_FONT_WEIGHT_BOLD = "bold"
 
@@ -949,6 +1082,9 @@ class AppPrefs(context: Context) {
 
         const val PLAYER_ENGINE_EXO = "exoplayer"
         const val PLAYER_ENGINE_IJK = "ijkplayer"
+
+        const val PLAYER_STYLE_FULLSCREEN = "fullscreen"
+        const val PLAYER_STYLE_HD = "hd"
 
         const val PLAYER_AUDIO_BALANCE_OFF = "off"
         const val PLAYER_AUDIO_BALANCE_LOW = "low"
@@ -1060,8 +1196,8 @@ class AppPrefs(context: Context) {
 
         fun normalizePlayerAutoSkipServerBaseUrl(raw: String?): String? {
             val value = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
-            val url = value.toHttpUrlOrNull() ?: return null
-            if (url.query != null || url.fragment != null) return null
+            val url = value.parseHttpUrl() ?: return null
+            if (url.urlQuery() != null || url.urlFragment() != null) return null
             return url.toString().trimEnd('/')
         }
     }

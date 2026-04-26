@@ -7,9 +7,11 @@ import android.net.Uri
 import android.app.Activity
 import android.app.Application
 import android.graphics.SurfaceTexture
+import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import android.os.SystemClock
+import android.util.DisplayMetrics
 import android.util.TypedValue
 import android.view.FocusFinder
 import android.view.KeyEvent
@@ -22,7 +24,11 @@ import android.view.ViewGroup.MarginLayoutParams
 import android.widget.FrameLayout
 import android.widget.SeekBar
 import androidx.constraintlayout.widget.ConstraintSet
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.widget.ImageViewCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.Format
@@ -38,12 +44,10 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.HttpDataSource
-import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime
-import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
@@ -79,6 +83,7 @@ import blbl.cat3399.feature.player.engine.ExoPlayerEngine
 import blbl.cat3399.feature.player.engine.IjkPlayerEngine
 import blbl.cat3399.feature.player.engine.IjkPlayerPlugin
 import blbl.cat3399.feature.player.engine.PlayerEngineKind
+import blbl.cat3399.feature.player.engine.createHttpDataSourceFactory
 import blbl.cat3399.feature.player.engine.PlaybackSource
 import blbl.cat3399.feature.settings.SettingsActivity
 import blbl.cat3399.feature.video.VideoDetailActivity
@@ -102,7 +107,21 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class PlayerActivity : BaseActivity() {
-    override fun shouldRecreateOnUiScaleChange(): Boolean = false
+    private data class ViewPaddingState(
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int,
+    )
+
+    private data class ViewMarginState(
+        val start: Int,
+        val top: Int,
+        val end: Int,
+        val bottom: Int,
+    )
+
+    override fun shouldRecreateOnUiScaleChange(): Boolean = true
 
     internal lateinit var binding: ActivityPlayerBinding
     internal var player: BlblPlayerEngine? = null
@@ -145,6 +164,9 @@ class PlayerActivity : BaseActivity() {
     internal var holdPrevSpeed: Float = 1.0f
     internal var holdPrevPlayWhenReady: Boolean = false
     internal var holdScrubPreviewPosMs: Long? = null
+    internal var keySeekPreviewPosMs: Long? = null
+    internal var keySeekBufferingOverlaySuppressedUntilMs: Long = 0L
+    internal var keySeekBufferingOverlayEligibleAtMs: Long = 0L
     internal var loadJob: kotlinx.coroutines.Job? = null
     internal var lastEndedActionAtMs: Long = 0L
     internal var playbackUncaughtHandler: CoroutineExceptionHandler? = null
@@ -160,6 +182,19 @@ class PlayerActivity : BaseActivity() {
     internal var socialStateFetchToken: Int = 0
     internal var likeButtonHoldController: HoldToTriggerController? = null
     internal var touchController: PlayerTouchController? = null
+    private var topBarBasePadding = ViewPaddingState(0, 0, 0, 0)
+    private var topBarBaseMargins = ViewMarginState(0, 0, 0, 0)
+    private var cardUpQuickBaseMargins = ViewMarginState(0, 0, 0, 0)
+    private var bottomBarBasePadding = ViewPaddingState(0, 0, 0, 0)
+    private var bottomBarBaseMargins = ViewMarginState(0, 0, 0, 0)
+    private var seekOsdBasePadding = ViewPaddingState(0, 0, 0, 0)
+    private var seekOsdBaseMargins = ViewMarginState(0, 0, 0, 0)
+    private var progressPersistentBottomBaseMargins = ViewMarginState(0, 0, 0, 0)
+    private var videoShotPreviewBaseMargins = ViewMarginState(0, 0, 0, 0)
+    private var seekHintBaseMargins = ViewMarginState(0, 0, 0, 0)
+    private var recommendPanelBaseMargins = ViewMarginState(0, 0, 0, 0)
+    private var settingsPanelBaseMargins = ViewMarginState(0, 0, 0, 0)
+    private var commentsPanelBaseMargins = ViewMarginState(0, 0, 0, 0)
 
     internal var commentSort: Int = COMMENT_SORT_HOT
     internal var commentsFetchJob: kotlinx.coroutines.Job? = null
@@ -208,10 +243,17 @@ class PlayerActivity : BaseActivity() {
         SeekTransient,
     }
 
+    internal enum class PanelDismissTarget {
+        ResumeOsd,
+        Fullscreen,
+    }
+
     internal var osdMode: OsdMode = OsdMode.Hidden
+    internal var menuRevealedPanelSessionActive: Boolean = false
 
     internal var currentBvid: String = ""
     internal var currentCid: Long = -1L
+    internal var currentVideoIsPortrait: Boolean? = null
     internal var currentEpId: Long? = null
     internal var currentAid: Long? = null
     internal var currentSeasonId: Long? = null
@@ -220,21 +262,36 @@ class PlayerActivity : BaseActivity() {
     internal var currentUpName: String? = null
     internal var currentUpAvatar: String? = null
     internal var currentUpFollowed: Boolean? = null
+    internal var currentPlayerDesc: String? = null
+    internal var currentPlayerViewCount: Long? = null
+    internal var currentPlayerDanmakuCount: Long? = null
+    internal var currentPlayerPubDateSec: Long? = null
+    internal var currentPlayerCommentCount: Long? = null
+    internal var currentPlayerLikeCount: Long? = null
+    internal var currentPlayerCoinCount: Long? = null
+    internal var currentPlayerFavCount: Long? = null
     internal var upFollowActionInFlight: Boolean = false
     internal var upFollowActionJob: Job? = null
     internal var upFollowStateJob: Job? = null
     internal var upFollowStateToken: Int = 0
+    internal var playerInfoShelfUsesRecommendFallback: Boolean = false
 
     internal var pageListToken: String? = null
     internal var pageListSource: String? = null
     internal var pageListItems: List<PlayerPlaylistItem> = emptyList()
     internal var pageListUiCards: List<VideoCard> = emptyList()
     internal var pageListIndex: Int = -1
+    internal var pageListContinuation: PlayerPlaylistContinuation? = null
+    internal var pageListLoadMoreJob: Job? = null
+    internal val pageListLoadMoreCallbacks = ArrayList<(Boolean) -> Unit>()
 
     internal var partsListSource: String? = null
     internal var partsListItems: List<PlayerPlaylistItem> = emptyList()
     internal var partsListUiCards: List<VideoCard> = emptyList()
     internal var partsListIndex: Int = -1
+    internal var partsListContinuation: PlayerPlaylistContinuation? = null
+    internal var partsListLoadMoreJob: Job? = null
+    internal val partsListLoadMoreCallbacks = ArrayList<(Boolean) -> Unit>()
     internal var partsListFetchJob: kotlinx.coroutines.Job? = null
     internal var partsListFetchToken: Int = 0
     internal lateinit var session: PlayerSessionSettings
@@ -653,22 +710,25 @@ class PlayerActivity : BaseActivity() {
         PlayerOsdSizing.applyTheme(this)
         ActivityStackLimiter.register(group = ACTIVITY_STACK_GROUP, activity = this, maxDepth = ACTIVITY_STACK_MAX_DEPTH)
         val prefs = BiliClient.prefs
+        val playerInflater = PlayerOsdSizing.cloneInflater(this, layoutInflater)
         val root =
-            layoutInflater.inflate(
+            playerInflater.inflate(
                 if (prefs.playerRenderViewType == AppPrefs.PLAYER_RENDER_VIEW_TEXTURE_VIEW) R.layout.activity_player_texture else R.layout.activity_player,
                 null,
             )
         binding = ActivityPlayerBinding.bind(root)
         setContentView(binding.root)
-        Immersive.apply(this, prefs.fullscreenEnabled)
+        applyPostInflateCompatUi()
+        Immersive.apply(this, prefs.fullscreenEnabled, playerScreen = true)
+        Immersive.setupKeepHidden(this) { BiliClient.prefs.fullscreenEnabled }
         PlayerUiMode.applyVideo(this, binding)
-        binding.topBar.setBackgroundResource(R.drawable.bg_player_top_scrim_strong)
+        captureSystemBarAvoidanceBaseState()
+        installSystemBarAvoidance()
         ensureBottomBarConstraintSets()
 
-        binding.topBar.visibility = View.GONE
         binding.bottomBar.visibility = View.GONE
         binding.progressPersistentBottom.max = SEEK_MAX
-        updatePersistentBottomProgressBarVisibility()
+        updateTopBarUi()
         resetBufferingOverlayState()
         binding.tvSeekHint.visibility = View.GONE
         binding.btnBack.setOnClickListener { finish() }
@@ -700,6 +760,7 @@ class PlayerActivity : BaseActivity() {
                 pageListUiCards =
                     p.uiCards.takeIf { it.isNotEmpty() && it.size == p.items.size }
                         ?: emptyList()
+                pageListContinuation = p.continuation
                 val idx = pageListIndex.takeIf { it in pageListItems.indices } ?: p.index
                 pageListIndex = idx.coerceIn(0, pageListItems.lastIndex)
                 PlayerPlaylistStore.updateIndex(token, pageListIndex)
@@ -770,6 +831,8 @@ class PlayerActivity : BaseActivity() {
             subtitleTextSizeSp = prefs.subtitleTextSizeSp,
             subtitleBottomPaddingFraction = prefs.subtitleBottomPaddingFraction,
             subtitleBackgroundOpacity = prefs.subtitleBackgroundOpacity,
+            audioBalanceLevel = AudioBalanceLevel.fromPrefValue(prefs.playerAudioBalanceLevel),
+            persistentBottomProgressEnabled = prefs.playerPersistentBottomProgressEnabled,
             danmaku = DanmakuSessionSettings(
                 enabled = prefs.danmakuEnabled,
                 opacity = prefs.danmakuOpacity,
@@ -780,6 +843,7 @@ class PlayerActivity : BaseActivity() {
                 area = prefs.danmakuArea,
                 laneDensity = DanmakuLaneDensity.fromPrefValue(prefs.danmakuLaneDensity),
                 followBiliShield = prefs.danmakuFollowBiliShield,
+                showHighLikeIcon = prefs.danmakuShowHighLikeIcon,
                 aiShieldEnabled = prefs.danmakuAiShieldEnabled,
                 aiShieldLevel = prefs.danmakuAiShieldLevel,
                 allowScroll = prefs.danmakuAllowScroll,
@@ -797,15 +861,16 @@ class PlayerActivity : BaseActivity() {
 
         val desiredEngineKind = session.engineKind
         val engineKind =
-            if (desiredEngineKind == PlayerEngineKind.IjkPlayer && !IjkPlayerPlugin.isInstalled(this)) {
-                AppToast.showLong(this, "IjkPlayer 插件未安装，已回退到 ExoPlayer")
-                PlayerEngineKind.ExoPlayer
-            } else {
-                desiredEngineKind
+            when {
+                desiredEngineKind == PlayerEngineKind.IjkPlayer && !IjkPlayerPlugin.isInstalled(this) -> {
+                    PlayerEngineKind.ExoPlayer
+                }
+                else -> desiredEngineKind
             }
         if (session.engineKind != engineKind) {
             session = session.copy(engineKind = engineKind)
         }
+        updatePersistentBottomProgressBarVisibility()
         val engine: BlblPlayerEngine =
             when (engineKind) {
                 PlayerEngineKind.IjkPlayer -> {
@@ -814,7 +879,7 @@ class PlayerActivity : BaseActivity() {
                 PlayerEngineKind.ExoPlayer -> {
                     ExoPlayerEngine(
                         context = this,
-                        audioBalanceLevel = AudioBalanceLevel.fromPrefValue(prefs.playerAudioBalanceLevel),
+                        audioBalanceLevel = session.audioBalanceLevel,
                         onTransferHost = { kind, host ->
                             when (kind) {
                                 DebugStreamKind.VIDEO -> debug.videoTransferHost = host
@@ -865,7 +930,14 @@ class PlayerActivity : BaseActivity() {
                         ) {
                             val nextConstraints = nextPlaybackConstraintsForDolbyFallback(picked)
                             if (nextConstraints != null) {
-                                decodeFallbackAttemptCount++
+                                val nextAttempt = decodeFallbackAttemptCount + 1
+                                AppLog.w(
+                                    "Player",
+                                    "fallback attempt=$nextAttempt/${HIGH_SPEC_FALLBACK_MAX_ATTEMPTS} error=${playbackException.errorCodeName} " +
+                                        "pickedQn=${picked.qn} codecid=${picked.codecid} dv=${picked.isDolbyVision} " +
+                                        "audio=${picked.audioKind}(${picked.audioId}) from=$playbackConstraints to=$nextConstraints",
+                                )
+                                decodeFallbackAttemptCount = nextAttempt
                                 playbackConstraints = nextConstraints
                                 trace?.log(
                                     "player:fallback",
@@ -1048,6 +1120,7 @@ class PlayerActivity : BaseActivity() {
         )
         refreshSettings(settingsAdapter)
         updateDebugOverlay()
+        initPlayerInfoPanel()
         initSidePanels()
         initCommentImageViewer()
         initBottomCardPanel()
@@ -1458,19 +1531,313 @@ class PlayerActivity : BaseActivity() {
         if (exitTraceStartAtMs > 0L) {
             exitTraceLog("window:focus", "hasFocus=${if (hasFocus) 1 else 0}")
         }
-        if (hasFocus) Immersive.apply(this, BiliClient.prefs.fullscreenEnabled)
+        if (hasFocus) Immersive.apply(this, BiliClient.prefs.fullscreenEnabled, playerScreen = true)
     }
 
     override fun onResume() {
         super.onResume()
         PlayerOsdSizing.applyTheme(this)
         PlayerUiMode.applyVideo(this, binding)
+        captureSystemBarAvoidanceBaseState()
+        if (Build.VERSION.SDK_INT < 21) {
+            applyLegacySystemBarAvoidance()
+        } else {
+            ViewCompat.requestApplyInsets(binding.root)
+        }
         applyOsdButtonsVisibility()
         // Defensive: ensure back stays non-focusable after any theme/UI refresh.
         binding.btnBack.isFocusable = false
         binding.btnBack.isFocusableInTouchMode = false
         updatePersistentBottomProgressBarVisibility()
         (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+    }
+
+    private fun captureSystemBarAvoidanceBaseState() {
+        topBarBasePadding = binding.topBar.capturePaddingState()
+        topBarBaseMargins = binding.topBar.captureMarginState()
+        cardUpQuickBaseMargins = binding.cardUpQuick.captureMarginState()
+        bottomBarBasePadding = binding.bottomBar.capturePaddingState()
+        bottomBarBaseMargins = binding.bottomBar.captureMarginState()
+        seekOsdBasePadding = binding.seekOsdContainer.capturePaddingState()
+        seekOsdBaseMargins = binding.seekOsdContainer.captureMarginState()
+        progressPersistentBottomBaseMargins = binding.progressPersistentBottom.captureMarginState()
+        videoShotPreviewBaseMargins = binding.videoShotPreview.captureMarginState()
+        seekHintBaseMargins = binding.tvSeekHint.captureMarginState()
+        recommendPanelBaseMargins = binding.recommendPanel.captureMarginState()
+        settingsPanelBaseMargins = binding.settingsPanel.captureMarginState()
+        commentsPanelBaseMargins = binding.commentsPanel.captureMarginState()
+    }
+    private fun installSystemBarAvoidance() {
+        if (Build.VERSION.SDK_INT < 21) {
+            applyLegacySystemBarAvoidance()
+            return
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
+            val navInsets = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.navigationBars())
+            val topInsets = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
+
+            binding.topBar.applyPaddingState(
+                topBarBasePadding,
+                extraTop = topInsets.top,
+            )
+            binding.topBar.applyMarginState(
+                topBarBaseMargins,
+                extraStart = navInsets.left,
+                extraEnd = navInsets.right,
+            )
+            binding.cardUpQuick.applyMarginState(
+                cardUpQuickBaseMargins,
+                extraStart = navInsets.left,
+                extraEnd = navInsets.right,
+            )
+            binding.bottomBar.applyPaddingState(
+                bottomBarBasePadding,
+                extraBottom = navInsets.bottom,
+            )
+            binding.bottomBar.applyMarginState(
+                bottomBarBaseMargins,
+                extraStart = navInsets.left,
+                extraEnd = navInsets.right,
+            )
+            binding.seekOsdContainer.applyPaddingState(
+                seekOsdBasePadding,
+                extraBottom = navInsets.bottom,
+            )
+            binding.seekOsdContainer.applyMarginState(
+                seekOsdBaseMargins,
+                extraStart = navInsets.left,
+                extraEnd = navInsets.right,
+            )
+            binding.progressPersistentBottom.applyMarginState(
+                progressPersistentBottomBaseMargins,
+                extraStart = navInsets.left,
+                extraEnd = navInsets.right,
+                extraBottom = navInsets.bottom,
+            )
+            binding.videoShotPreview.applyMarginState(
+                videoShotPreviewBaseMargins,
+                extraStart = navInsets.left,
+                extraEnd = navInsets.right,
+                extraBottom = navInsets.bottom,
+            )
+            binding.tvSeekHint.applyMarginState(
+                seekHintBaseMargins,
+                extraStart = navInsets.left,
+                extraEnd = navInsets.right,
+                extraBottom = navInsets.bottom,
+            )
+            binding.recommendPanel.applyMarginState(
+                recommendPanelBaseMargins,
+                extraStart = navInsets.left,
+                extraEnd = navInsets.right,
+                extraBottom = navInsets.bottom,
+            )
+            binding.settingsPanel.applyMarginState(
+                settingsPanelBaseMargins,
+                extraTop = topInsets.top,
+                extraEnd = navInsets.right,
+                extraBottom = navInsets.bottom,
+            )
+            binding.commentsPanel.applyMarginState(
+                commentsPanelBaseMargins,
+                extraTop = topInsets.top,
+                extraEnd = navInsets.right,
+                extraBottom = navInsets.bottom,
+            )
+            insets
+        }
+        ViewCompat.requestApplyInsets(binding.root)
+    }
+
+    private fun applyLegacySystemBarAvoidance() {
+        val topInset = getSystemBarDimension("status_bar_height")
+        val (navRightInset, navBottomInset) = getLegacyNavigationBarInsets()
+
+        binding.topBar.applyPaddingState(
+            topBarBasePadding,
+            extraTop = topInset,
+        )
+        binding.topBar.applyMarginState(
+            topBarBaseMargins,
+            extraEnd = navRightInset,
+        )
+        binding.cardUpQuick.applyMarginState(
+            cardUpQuickBaseMargins,
+            extraEnd = navRightInset,
+        )
+        binding.bottomBar.applyPaddingState(
+            bottomBarBasePadding,
+            extraBottom = navBottomInset,
+        )
+        binding.bottomBar.applyMarginState(
+            bottomBarBaseMargins,
+            extraEnd = navRightInset,
+        )
+        binding.seekOsdContainer.applyPaddingState(
+            seekOsdBasePadding,
+            extraBottom = navBottomInset,
+        )
+        binding.seekOsdContainer.applyMarginState(
+            seekOsdBaseMargins,
+            extraEnd = navRightInset,
+        )
+        binding.progressPersistentBottom.applyMarginState(
+            progressPersistentBottomBaseMargins,
+            extraEnd = navRightInset,
+            extraBottom = navBottomInset,
+        )
+        binding.videoShotPreview.applyMarginState(
+            videoShotPreviewBaseMargins,
+            extraEnd = navRightInset,
+            extraBottom = navBottomInset,
+        )
+        binding.tvSeekHint.applyMarginState(
+            seekHintBaseMargins,
+            extraEnd = navRightInset,
+            extraBottom = navBottomInset,
+        )
+        binding.recommendPanel.applyMarginState(
+            recommendPanelBaseMargins,
+            extraEnd = navRightInset,
+            extraBottom = navBottomInset,
+        )
+        binding.settingsPanel.applyMarginState(
+            settingsPanelBaseMargins,
+            extraTop = topInset,
+            extraEnd = navRightInset,
+            extraBottom = navBottomInset,
+        )
+        binding.commentsPanel.applyMarginState(
+            commentsPanelBaseMargins,
+            extraTop = topInset,
+            extraEnd = navRightInset,
+            extraBottom = navBottomInset,
+        )
+    }
+
+    private fun getLegacyNavigationBarInsets(): Pair<Int, Int> {
+        if (!hasLegacyNavigationBar()) return 0 to 0
+        val (widthDiff, heightDiff) = getLegacyNavigationBarMetricDiff()
+        val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val navWidth = getSystemBarDimension("navigation_bar_width")
+        val navHeightPortrait = getSystemBarDimension("navigation_bar_height")
+        val navHeightLandscape = getSystemBarDimension("navigation_bar_height_landscape")
+        val result =
+            if (widthDiff > 0 || heightDiff > 0) {
+                when {
+                    widthDiff > 0 && heightDiff <= 0 -> widthDiff to 0
+                    heightDiff > 0 -> 0 to heightDiff
+                    else -> 0 to 0
+                }
+            } else if (isLandscape) {
+                when {
+                    navWidth > 0 -> navWidth to 0
+                    navHeightLandscape > 0 -> 0 to navHeightLandscape
+                    navHeightPortrait > 0 -> 0 to navHeightPortrait
+                    else -> 0 to 0
+                }
+            } else {
+                0 to navHeightPortrait
+            }
+        return result
+    }
+
+    private fun getLegacyNavigationBarMetricDiff(): Pair<Int, Int> {
+        val realMetrics = DisplayMetrics()
+        val displayMetrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay?.let { display ->
+            @Suppress("DEPRECATION")
+            display.getRealMetrics(realMetrics)
+            @Suppress("DEPRECATION")
+            display.getMetrics(displayMetrics)
+        }
+        return (realMetrics.widthPixels - displayMetrics.widthPixels).coerceAtLeast(0) to
+            (realMetrics.heightPixels - displayMetrics.heightPixels).coerceAtLeast(0)
+    }
+
+    private fun hasLegacyNavigationBar(): Boolean {
+        val configId = resources.getIdentifier("config_showNavigationBar", "bool", "android")
+        if (configId != 0 && !resources.getBoolean(configId)) return false
+        val realMetrics = DisplayMetrics()
+        val displayMetrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay?.let { display ->
+            @Suppress("DEPRECATION")
+            display.getRealMetrics(realMetrics)
+            @Suppress("DEPRECATION")
+            display.getMetrics(displayMetrics)
+        }
+        val hasNav =
+            realMetrics.widthPixels > displayMetrics.widthPixels ||
+                realMetrics.heightPixels > displayMetrics.heightPixels ||
+                configId != 0
+        return hasNav
+    }
+
+    private fun getSystemBarDimension(name: String): Int {
+        val resId = resources.getIdentifier(name, "dimen", "android")
+        return if (resId != 0) resources.getDimensionPixelSize(resId) else 0
+    }
+
+    private fun View.capturePaddingState(): ViewPaddingState =
+        ViewPaddingState(
+            left = paddingLeft,
+            top = paddingTop,
+            right = paddingRight,
+            bottom = paddingBottom,
+        )
+
+    private fun View.captureMarginState(): ViewMarginState {
+        val lp = layoutParams as? MarginLayoutParams
+        return ViewMarginState(
+            start = lp?.marginStart ?: 0,
+            top = lp?.topMargin ?: 0,
+            end = lp?.marginEnd ?: 0,
+            bottom = lp?.bottomMargin ?: 0,
+        )
+    }
+
+    private fun View.applyPaddingState(
+        base: ViewPaddingState,
+        extraLeft: Int = 0,
+        extraTop: Int = 0,
+        extraRight: Int = 0,
+        extraBottom: Int = 0,
+    ) {
+        setPadding(
+            base.left + extraLeft,
+            base.top + extraTop,
+            base.right + extraRight,
+            base.bottom + extraBottom,
+        )
+    }
+
+    private fun View.applyMarginState(
+        base: ViewMarginState,
+        extraStart: Int = 0,
+        extraTop: Int = 0,
+        extraEnd: Int = 0,
+        extraBottom: Int = 0,
+    ) {
+        val lp = layoutParams as? MarginLayoutParams ?: return
+        val nextStart = base.start + extraStart
+        val nextTop = base.top + extraTop
+        val nextEnd = base.end + extraEnd
+        val nextBottom = base.bottom + extraBottom
+        if (
+            lp.marginStart == nextStart &&
+            lp.topMargin == nextTop &&
+            lp.marginEnd == nextEnd &&
+            lp.bottomMargin == nextBottom
+        ) {
+            return
+        }
+        lp.marginStart = nextStart
+        lp.topMargin = nextTop
+        lp.marginEnd = nextEnd
+        lp.bottomMargin = nextBottom
+        layoutParams = lp
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -1553,7 +1920,6 @@ class PlayerActivity : BaseActivity() {
                 }
 
                 if (pendingDir != 0) {
-                    showSeekOsd()
                     smartSeek(direction = pendingDir, showControls = false, hintKind = SeekHintKind.Step)
                     return true
                 }
@@ -1570,22 +1936,43 @@ class PlayerActivity : BaseActivity() {
         when (keyCode) {
             KeyEvent.KEYCODE_MENU,
             KeyEvent.KEYCODE_SETTINGS,
-            KeyEvent.KEYCODE_INFO,
-            KeyEvent.KEYCODE_GUIDE,
             -> {
+                if (menuRevealedPanelSessionActive && isOverlayPanelVisible()) {
+                    when {
+                        isCommentsPanelVisible() -> hideCommentsPanel(dismissTarget = PanelDismissTarget.Fullscreen)
+                        isSettingsPanelVisible() -> hideSettingsPanel(dismissTarget = PanelDismissTarget.Fullscreen)
+                        isBottomCardPanelVisible() ->
+                            hideBottomCardPanel(
+                                restoreFocus = false,
+                                dismissTarget = PanelDismissTarget.Fullscreen,
+                            )
+                        else -> {
+                            menuRevealedPanelSessionActive = false
+                            setControlsVisible(false)
+                        }
+                    }
+                    return true
+                }
                 if (isSidePanelVisible()) {
-                    if (!isSettingsPanelVisible() && (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS)) {
+                    if (!isSettingsPanelVisible()) {
                         showSettingsPanel()
                     }
                     return true
                 }
                 if (
-                    osdMode == OsdMode.Hidden &&
-                    (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS)
+                    osdMode == OsdMode.Hidden
                 ) {
-                    showSettingsPanel()
+                    showSettingsPanel(openedFromMenuKey = true)
                     return true
                 }
+                setControlsVisible(true)
+                focusFirstControl()
+                return true
+            }
+
+            KeyEvent.KEYCODE_INFO,
+            KeyEvent.KEYCODE_GUIDE,
+            -> {
                 setControlsVisible(true)
                 focusFirstControl()
                 return true
@@ -1615,7 +2002,7 @@ class PlayerActivity : BaseActivity() {
                         "back:down action=side_panel",
                         "settings=${if (isSettingsPanelVisible()) 1 else 0} comments=${if (isCommentsPanelVisible()) 1 else 0} thread=${if (isCommentThreadVisible()) 1 else 0}",
                     )
-                    return onSidePanelBackPressed()
+                    return onSidePanelBackPressed(dismissTarget = PanelDismissTarget.ResumeOsd)
                 }
                 if (osdMode != OsdMode.Hidden) {
                     exitTraceLog("back:down action=hide_osd", "osd=$osdMode")
@@ -1640,18 +2027,6 @@ class PlayerActivity : BaseActivity() {
                     if (showListPanelFromShortcut()) return true
                 }
                 setControlsVisible(true)
-                // Narrow exception: when touch-lock button is focused and UP quick card is visible,
-                // allow UP to enter the quick card instead of forcing seek bar focus.
-                if (
-                    currentFocus === binding.btnTouchLock &&
-                    binding.cardUpQuick.visibility == View.VISIBLE &&
-                    binding.btnUpQuickProfile.visibility == View.VISIBLE &&
-                    binding.btnUpQuickProfile.isEnabled &&
-                    binding.btnUpQuickProfile.isFocusable
-                ) {
-                    binding.btnUpQuickProfile.requestFocus()
-                    return true
-                }
                 if (!binding.seekProgress.isFocused) {
                     focusSeekBar()
                     return true
@@ -1747,14 +2122,13 @@ class PlayerActivity : BaseActivity() {
                 }
 
                 if (event.repeatCount > 0) {
-                    showSeekOsd()
                     clearKeySeekPending()
                     // Long-press LEFT: always do preview-scrub rewind.
                     startHoldScrub(direction = -1, showControls = false)
                     return true
                 }
 
-                showSeekOsd()
+                if (holdSeekUsesProgressPreview(direction = -1)) showSeekOsd()
                 beginKeySeekPending(keyCode = keyCode, direction = -1, showControls = false)
                 return true
             }
@@ -1772,13 +2146,12 @@ class PlayerActivity : BaseActivity() {
                 }
 
                 if (event.repeatCount > 0) {
-                    showSeekOsd()
                     clearKeySeekPending()
                     startHoldSeek(direction = +1, showControls = false)
                     return true
                 }
 
-                showSeekOsd()
+                if (holdSeekUsesProgressPreview(direction = +1)) showSeekOsd()
                 beginKeySeekPending(keyCode = keyCode, direction = +1, showControls = false)
                 return true
             }
@@ -1789,6 +2162,7 @@ class PlayerActivity : BaseActivity() {
 
     override fun onStop() {
         touchController?.onStop()
+        cancelDeferredKeySeekPreview()
         exitTraceStopAtMs = SystemClock.elapsedRealtime()
         if (exitCleanupRequested || isFinishing) {
             exitTraceStart("onStop")
@@ -1914,6 +2288,10 @@ class PlayerActivity : BaseActivity() {
         relatedVideosFetchJob?.cancel()
         commentsFetchJob?.cancel()
         commentThreadFetchJob?.cancel()
+        pageListLoadMoreJob?.cancel()
+        partsListLoadMoreJob?.cancel()
+        pageListLoadMoreCallbacks.clear()
+        partsListLoadMoreCallbacks.clear()
         loadJob?.cancel()
         cancelDanmakuLoading(reason = "destroy")
         loadJob = null
@@ -2105,11 +2483,17 @@ class PlayerActivity : BaseActivity() {
                     cancelPendingAutoNext(reason = "user_seek", markCancelledByUser = false)
                     scrubbing = true
                     noteUserInteraction()
-                    if (seekBar?.isPressed != true) scheduleKeyScrubEnd()
+                    if (seekBar?.isPressed != true) {
+                        suppressBufferingOverlayDuringKeySeek(KEY_SCRUB_END_DELAY_MS)
+                        scheduleKeyScrubEnd()
+                    }
 
                     val duration = engine.duration.takeIf { it > 0 } ?: currentViewDurationMs
                     if (duration != null) {
                         val previewPos = (duration * progress) / SEEK_MAX
+                        if (seekBar?.isPressed != true) {
+                            keySeekPreviewPosMs = previewPos
+                        }
                         binding.tvTime.text = "${formatHms(previewPos)} / ${formatHms(duration)}"
 
                         val hasVideoShot =
@@ -2125,13 +2509,14 @@ class PlayerActivity : BaseActivity() {
 
                     if (binding.seekProgress.isFocused && duration != null) {
                         val seekTo = duration * progress / SEEK_MAX
-                        val isIjk = engine.kind == PlayerEngineKind.IjkPlayer
-                        if (isIjk && seekBar?.isPressed != true) {
-                            // Key-scrub (focused SeekBar, not touch dragging): defer the actual seek until
-                            // the user stops scrubbing, otherwise ijk/ffmpeg may clamp seeks to the buffered edge.
+                        if (seekBar?.isPressed != true) {
+                            // Key-scrub (focused SeekBar, not touch dragging): keep preview updates immediate,
+                            // but coalesce the actual seek until the user briefly settles on a target.
                             keyScrubPendingSeekToMs = seekTo
+                            updateBufferingOverlay()
                         } else {
-                            val isIjkDragging = isIjk && seekBar?.isPressed == true
+                            keySeekPreviewPosMs = null
+                            val isIjkDragging = engine.kind == PlayerEngineKind.IjkPlayer
                             if (!isIjkDragging) engine.seekTo(seekTo)
                         }
                     }
@@ -2141,6 +2526,7 @@ class PlayerActivity : BaseActivity() {
                     cancelPendingAutoResume(reason = "user_seek")
                     cancelPendingAutoSkip(reason = "user_seek", markIgnored = true)
                     cancelPendingAutoNext(reason = "user_seek", markCancelledByUser = false)
+                    cancelDeferredKeySeekPreview(resetScrubbing = false)
                     scrubbing = true
                     keyScrubPendingSeekToMs = null
                     keyScrubEndJob?.cancel()
@@ -2151,6 +2537,7 @@ class PlayerActivity : BaseActivity() {
                     val duration = engine.duration.takeIf { it > 0 } ?: currentViewDurationMs ?: return
                     val progress = seekBar?.progress ?: return
                     val seekTo = duration * progress / SEEK_MAX
+                    keySeekPreviewPosMs = null
                     keyScrubPendingSeekToMs = null
                     engine.seekTo(seekTo)
                     binding.tvTime.text = "${formatHms(seekTo)} / ${formatHms(duration)}"
@@ -2367,34 +2754,33 @@ class PlayerActivity : BaseActivity() {
     }
 
     internal fun updateDanmakuButton() {
-        binding.btnDanmaku.imageTintList = null
-        binding.btnDanmaku.isSelected = session.danmaku.enabled
+        ImageViewCompat.setImageTintList(binding.btnDanmaku, null)
+        if (Build.VERSION.SDK_INT < 21) {
+            // API 19: selector with vector items not supported; swap icon manually
+            val res = if (session.danmaku.enabled) R.drawable.ic_player_danmaku_on else R.drawable.ic_player_danmaku_off
+            binding.btnDanmaku.setImageDrawable(AppCompatResources.getDrawable(this, res))
+        } else {
+            binding.btnDanmaku.isSelected = session.danmaku.enabled
+        }
     }
 
     internal fun setDanmakuEnabled(enabled: Boolean) {
-        if (session.danmaku.enabled == enabled) return
-        session = session.copy(danmaku = session.danmaku.copy(enabled = enabled))
-        binding.danmakuView.invalidate()
-        updateDanmakuButton()
-        if (enabled) {
-            val positionMs = player?.currentPosition?.coerceAtLeast(0L) ?: 0L
-            requestDanmakuSegmentsForPosition(positionMs, immediate = true)
-        }
+        applyDanmakuEnabledSetting(enabled)
     }
 
     internal fun updateSubtitleButton() {
         if (!subtitleAvailabilityKnown) {
             binding.btnSubtitle.isEnabled = true
             binding.btnSubtitle.alpha = 1.0f
-            binding.btnSubtitle.imageTintList =
-                ContextCompat.getColorStateList(this, blbl.cat3399.R.color.player_button_tint)
+            ImageViewCompat.setImageTintList(binding.btnSubtitle,
+                ContextCompat.getColorStateList(this, blbl.cat3399.R.color.player_button_tint))
             return
         }
         if (!subtitleAvailable) {
             binding.btnSubtitle.isEnabled = false
             binding.btnSubtitle.alpha = 0.35f
-            binding.btnSubtitle.imageTintList =
-                ContextCompat.getColorStateList(this, blbl.cat3399.R.color.player_button_tint)
+            ImageViewCompat.setImageTintList(binding.btnSubtitle,
+                ContextCompat.getColorStateList(this, blbl.cat3399.R.color.player_button_tint))
             return
         }
 
@@ -2406,7 +2792,7 @@ class PlayerActivity : BaseActivity() {
             } else {
                 blbl.cat3399.R.color.player_button_tint
             }
-        binding.btnSubtitle.imageTintList = ContextCompat.getColorStateList(this, colorRes)
+        ImageViewCompat.setImageTintList(binding.btnSubtitle, ContextCompat.getColorStateList(this, colorRes))
     }
 
     internal fun toggleSubtitles(exo: ExoPlayer) {
@@ -2418,9 +2804,7 @@ class PlayerActivity : BaseActivity() {
             AppToast.show(this, "该视频暂无字幕")
             return
         }
-        session = session.copy(subtitleEnabled = !session.subtitleEnabled)
-        applySubtitleEnabled(exo)
-        updateSubtitleButton()
+        applySubtitleEnabledSetting(!session.subtitleEnabled, exo)
     }
 
     internal fun applySubtitleEnabled(exo: ExoPlayer) {
@@ -2630,16 +3014,25 @@ class PlayerActivity : BaseActivity() {
         return null
     }
 
-    private val deviceSupportsDolbyVision: Boolean by lazy {
-        hasDecoder(MimeTypes.VIDEO_DOLBY_VISION)
+    private fun dashQnOf(obj: JSONObject): Int {
+        val id = obj.optInt("id", 0)
+        if (id > 0) return id
+        return obj.optInt("quality", 0).takeIf { it > 0 } ?: 0
     }
 
-    private fun hasDecoder(mimeType: String): Boolean =
-        try {
-            MediaCodecUtil.getDecoderInfos(mimeType, /* secure= */ false, /* tunneling= */ false).isNotEmpty()
-        } catch (_: Throwable) {
-            false
-        }
+    private fun dashTrackHasAnyUrl(obj: JSONObject): Boolean = selectCdnUrlsFromTrack(obj, preference = BiliClient.prefs.playerCdnPreference).isNotEmpty()
+
+    private fun isDolbyVisionTrack(obj: JSONObject): Boolean {
+        if (dashQnOf(obj) == 126) return true
+        val mime = obj.optString("mimeType", obj.optString("mime_type", "")).lowercase(Locale.US)
+        if (mime.contains("dolby-vision")) return true
+        val codecs = obj.optString("codecs", "").lowercase(Locale.US)
+        return codecs.startsWith("dvhe") || codecs.startsWith("dvh1") || codecs.contains("dovi")
+    }
+
+    private fun effectiveTargetQnForLog(): Int = session.targetQn.takeIf { it > 0 } ?: session.preferredQn
+
+    private fun effectiveTargetAudioIdForLog(): Int = session.targetAudioId.takeIf { it > 0 } ?: session.preferAudioId
 
     private fun selectCdnUrlsFromTrack(obj: JSONObject, preference: String): List<String> {
         val candidates = buildList {
@@ -2703,20 +3096,6 @@ class PlayerActivity : BaseActivity() {
                 else -> 7
             }
 
-            fun qnOf(v: JSONObject): Int {
-                val id = v.optInt("id", 0)
-                if (id > 0) return id
-                return v.optInt("quality", 0).takeIf { it > 0 } ?: 0
-            }
-
-            fun isDolbyVisionTrack(v: JSONObject): Boolean {
-                if (qnOf(v) == 126) return true
-                val mime = v.optString("mimeType", v.optString("mime_type", "")).lowercase(Locale.US)
-                if (mime.contains("dolby-vision")) return true
-                val codecs = v.optString("codecs", "").lowercase(Locale.US)
-                return codecs.startsWith("dvhe") || codecs.startsWith("dvh1") || codecs.contains("dovi")
-            }
-
             fun trackInfo(obj: JSONObject): DashTrackInfo {
                 val mimeType =
                     obj.optString("mimeType", obj.optString("mime_type", ""))
@@ -2765,7 +3144,7 @@ class PlayerActivity : BaseActivity() {
                 for (i in 0 until videos.length()) {
                     val v = videos.optJSONObject(i) ?: continue
                     if (baseUrls(v).isEmpty()) continue
-                    val qn = qnOf(v)
+                    val qn = dashQnOf(v)
                     if (qn <= 0) continue
                     add(v)
                 }
@@ -2773,15 +3152,16 @@ class PlayerActivity : BaseActivity() {
 
             val videoItems =
                 rawVideoItems.filterNot { v ->
-                    isDolbyVisionTrack(v) && (!constraints.allowDolbyVision || !deviceSupportsDolbyVision)
+                    isDolbyVisionTrack(v) && !constraints.allowDolbyVision
                 }
 
-            val availableQns = videoItems.map { qnOf(it) }.filter { it > 0 }.distinct()
+            val rawQns = rawVideoItems.map { dashQnOf(it) }.filter { it > 0 }.distinct()
+            val availableQns = videoItems.map { dashQnOf(it) }.filter { it > 0 }.distinct()
 
             val desiredQn = session.targetQn.takeIf { it > 0 } ?: session.preferredQn
             val pickedQn = pickQnByQualityOrder(availableQns, desiredQn)
 
-            val candidatesByQn = if (pickedQn > 0) videoItems.filter { qnOf(it) == pickedQn } else videoItems
+            val candidatesByQn = if (pickedQn > 0) videoItems.filter { dashQnOf(it) == pickedQn } else videoItems
             val candidates =
                 when {
                     candidatesByQn.isNotEmpty() -> candidatesByQn
@@ -2798,7 +3178,7 @@ class PlayerActivity : BaseActivity() {
             var bestScore = -1L
             for (v in candidates) {
                 val codecid = v.optInt("codecid", 0)
-                val qn = qnOf(v)
+                val qn = dashQnOf(v)
                 val bandwidth = v.optLong("bandwidth", 0L)
                 val okCodec = (codecid == preferCodecid)
                 val score =
@@ -2816,7 +3196,7 @@ class PlayerActivity : BaseActivity() {
             } else {
                 val videoUrlCandidates = baseUrls(picked)
                 val videoUrl = videoUrlCandidates.firstOrNull().orEmpty()
-                val pickedQnFinal = qnOf(picked)
+                val pickedQnFinal = dashQnOf(picked)
                 val pickedCodecid = picked.optInt("codecid", 0)
                 val pickedIsDolbyVision = isDolbyVisionTrack(picked)
                 dashVideoUrlForFallback = videoUrl
@@ -2831,14 +3211,14 @@ class PlayerActivity : BaseActivity() {
 
                 data class AudioCandidate(val obj: JSONObject, val kind: DashAudioKind, val id: Int, val bandwidth: Long)
 
-                val allAudioCandidates = buildList<AudioCandidate> {
+                val rawAudioCandidates = buildList<AudioCandidate> {
                     for (i in 0 until audios.length()) {
                         val a = audios.optJSONObject(i) ?: continue
                         if (baseUrls(a).isEmpty()) continue
                         add(AudioCandidate(a, DashAudioKind.NORMAL, a.optInt("id", 0), a.optLong("bandwidth", 0L)))
                     }
                     val dolbyAudios = dolby?.optJSONArray("audio")
-                    if (dolbyAudios != null && constraints.allowDolbyAudio) {
+                    if (dolbyAudios != null) {
                         for (i in 0 until dolbyAudios.length()) {
                             val a = dolbyAudios.optJSONObject(i) ?: continue
                             if (baseUrls(a).isEmpty()) continue
@@ -2846,12 +3226,25 @@ class PlayerActivity : BaseActivity() {
                         }
                     }
                     val flacAudio = flac?.optJSONObject("audio")
-                    if (flacAudio != null && constraints.allowFlacAudio && baseUrls(flacAudio).isNotEmpty()) {
+                    if (flacAudio != null && baseUrls(flacAudio).isNotEmpty()) {
                         add(AudioCandidate(flacAudio, DashAudioKind.FLAC, flacAudio.optInt("id", 0), flacAudio.optLong("bandwidth", 0L)))
                     }
                 }
 
+                val allAudioCandidates =
+                    rawAudioCandidates.filterNot { candidate ->
+                        (candidate.kind == DashAudioKind.DOLBY && !constraints.allowDolbyAudio) ||
+                            (candidate.kind == DashAudioKind.FLAC && !constraints.allowFlacAudio)
+                    }
+
                 val desiredAudioId = session.targetAudioId.takeIf { it > 0 } ?: session.preferAudioId
+                val rawAudioIds = rawAudioCandidates.map { it.id }.filter { it > 0 }.distinct()
+                val availableAudioIds = allAudioCandidates.map { it.id }.filter { it > 0 }.distinct()
+                AppLog.i(
+                    "Player",
+                    "pickPlayable targetQn=$desiredQn targetAudioId=$desiredAudioId constraints=$constraints " +
+                        "rawQns=$rawQns selectableQns=$availableQns rawAudioIds=$rawAudioIds selectableAudioIds=$availableAudioIds",
+                )
                 val pickedAudioId = pickAudioIdByPreference(allAudioCandidates.map { it.id }, desiredAudioId)
                 if (pickedAudioId > 0 && pickedAudioId != desiredAudioId) {
                     AppLog.w("Player", "wanted audioId=$desiredAudioId but fallback to audioId=$pickedAudioId")
@@ -2959,7 +3352,7 @@ class PlayerActivity : BaseActivity() {
                 override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
             }
 
-        val upstream = OkHttpDataSource.Factory(BiliClient.cdnOkHttp).setTransferListener(listener)
+        val upstream = createHttpDataSourceFactory(transferListener = listener)
         val uris =
             urlCandidates
                 .orEmpty()
@@ -3036,40 +3429,44 @@ class PlayerActivity : BaseActivity() {
                 showRiskControlBypassHintIfNeeded(playJson)
                 lastAvailableQns = parseDashVideoQnList(playJson)
                 lastAvailableAudioIds = parseDashAudioIdList(playJson, constraints = playbackConstraints)
+                logPlayUrlTrackSummary(source = "reload", playJson = playJson, constraints = playbackConstraints)
                 if (engine.kind == PlayerEngineKind.IjkPlayer && playable !is Playable.Dash) {
                     AppToast.showLong(this@PlayerActivity, "IjkPlayer 内核仅支持 DASH（音视频分离）流，请切回 ExoPlayer")
                     return@launch
                 }
                 when (playable) {
-	                    is Playable.Dash -> {
+                    is Playable.Dash -> {
                         if (engine.kind == PlayerEngineKind.IjkPlayer) {
                             if (playable.videoTrackInfo.segmentBase == null || playable.audioTrackInfo.segmentBase == null) {
                                 AppToast.showLong(this@PlayerActivity, "IjkPlayer 播放 DASH 需要 segment_base（initialization/index_range），当前流缺失，请切回 ExoPlayer")
                                 return@launch
                             }
                         }
-		                        lastPickedDash = playable
-		                        debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
-		                        engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
-		                        applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
-		                        applyAudioFallbackIfNeeded(requestedAudioId = session.targetAudioId, actualAudioId = playable.audioId)
-		                    }
+                        lastPickedDash = playable
+                        debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
+                        logPickedPlayable(source = "reload", playable = playable)
+                        engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
+                        applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
+                        applyAudioFallbackIfNeeded(requestedAudioId = session.targetAudioId, actualAudioId = playable.audioId)
+                    }
                     is Playable.VideoOnly -> {
                         lastPickedDash = null
-		                        session = session.copy(actualAudioId = 0)
-		                        (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-		                        debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
-		                        engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
-		                        applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
-		                    }
+                        session = session.copy(actualAudioId = 0)
+                        (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+                        debug.cdnHost = runCatching { Uri.parse(playable.videoUrl).host }.getOrNull()
+                        logPickedPlayable(source = "reload", playable = playable)
+                        engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
+                        applyResolutionFallbackIfNeeded(requestedQn = session.targetQn, actualQn = playable.qn)
+                    }
                     is Playable.Progressive -> {
                         lastPickedDash = null
-		                        session = session.copy(actualAudioId = 0)
-		                        (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
-		                        debug.cdnHost = runCatching { Uri.parse(playable.url).host }.getOrNull()
-		                        engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
-		                    }
-		                }
+                        session = session.copy(actualAudioId = 0)
+                        (binding.recyclerSettings.adapter as? PlayerSettingsAdapter)?.let { refreshSettings(it) }
+                        debug.cdnHost = runCatching { Uri.parse(playable.url).host }.getOrNull()
+                        logPickedPlayable(source = "reload", playable = playable)
+                        engine.setSource(PlaybackSource.Vod(playable = playable, subtitle = subtitleConfig, durationMs = currentViewDurationMs))
+                    }
+                }
                 schedulePlayUrlAutoRefresh(playable, reason = "reload_stream")
                 engine.prepare()
                 (engine as? ExoPlayerEngine)?.exoPlayer?.let { applySubtitleEnabled(it) }
@@ -3496,13 +3893,26 @@ class PlayerActivity : BaseActivity() {
         val videos = dash.optJSONArray("video") ?: return emptyList()
         val list = ArrayList<Int>(videos.length())
 
-        fun baseUrl(obj: JSONObject): String =
-            obj.optString("baseUrl", obj.optString("base_url", obj.optString("url", "")))
+        for (i in 0 until videos.length()) {
+            val v = videos.optJSONObject(i) ?: continue
+            if (!dashTrackHasAnyUrl(v)) continue
+            val qn = dashQnOf(v)
+            if (qn > 0) list.add(qn)
+        }
+        return list.distinct().sortedBy { qnRank(it) }
+    }
+
+    internal fun parseSelectableDashVideoQnList(playJson: JSONObject, constraints: PlaybackConstraints): List<Int> {
+        val data = playJson.optJSONObject("data") ?: playJson.optJSONObject("result") ?: return emptyList()
+        val dash = data.optJSONObject("dash") ?: return emptyList()
+        val videos = dash.optJSONArray("video") ?: return emptyList()
+        val list = ArrayList<Int>(videos.length())
 
         for (i in 0 until videos.length()) {
             val v = videos.optJSONObject(i) ?: continue
-            if (baseUrl(v).isBlank()) continue
-            val qn = v.optInt("id", 0).takeIf { it > 0 } ?: v.optInt("quality", 0)
+            if (!dashTrackHasAnyUrl(v)) continue
+            if (isDolbyVisionTrack(v) && !constraints.allowDolbyVision) continue
+            val qn = dashQnOf(v)
             if (qn > 0) list.add(qn)
         }
         return list.distinct().sortedBy { qnRank(it) }
@@ -3545,6 +3955,54 @@ class PlayerActivity : BaseActivity() {
         return out.distinct()
     }
 
+    internal fun logPlayUrlTrackSummary(source: String, playJson: JSONObject, constraints: PlaybackConstraints) {
+        val rawQns = parseDashVideoQnList(playJson)
+        val selectableQns = parseSelectableDashVideoQnList(playJson, constraints)
+        val rawAudioIds = parseDashAudioIdList(playJson, constraints = PlaybackConstraints())
+        val selectableAudioIds = parseDashAudioIdList(playJson, constraints = constraints)
+        val targetQn = effectiveTargetQnForLog()
+        val targetAudioId = effectiveTargetAudioIdForLog()
+        AppLog.i(
+            "Player",
+            "playurl summary source=$source targetQn=$targetQn targetAudioId=$targetAudioId constraints=$constraints " +
+                "rawQns=$rawQns selectableQns=$selectableQns rawAudioIds=$rawAudioIds selectableAudioIds=$selectableAudioIds",
+        )
+        trace?.log(
+            "playurl:summary",
+            "src=$source targetQn=$targetQn targetAudioId=$targetAudioId rawQns=$rawQns selectableQns=$selectableQns rawAudioIds=$rawAudioIds selectableAudioIds=$selectableAudioIds",
+        )
+    }
+
+    internal fun logPickedPlayable(source: String, playable: Playable) {
+        val targetQn = effectiveTargetQnForLog()
+        val targetAudioId = effectiveTargetAudioIdForLog()
+        when (playable) {
+            is Playable.Dash -> {
+                AppLog.i(
+                    "Player",
+                    "selected source=$source targetQn=$targetQn targetAudioId=$targetAudioId actualQn=${playable.qn} " +
+                        "codecid=${playable.codecid} dv=${playable.isDolbyVision} audio=${playable.audioKind}(${playable.audioId}) " +
+                        "video=${playable.videoUrl}",
+                )
+            }
+
+            is Playable.VideoOnly -> {
+                AppLog.i(
+                    "Player",
+                    "selected source=$source targetQn=$targetQn targetAudioId=$targetAudioId actualQn=${playable.qn} " +
+                        "codecid=${playable.codecid} dv=${playable.isDolbyVision} videoOnly=${playable.videoUrl}",
+                )
+            }
+
+            is Playable.Progressive -> {
+                AppLog.i(
+                    "Player",
+                    "selected source=$source targetQn=$targetQn targetAudioId=$targetAudioId progressive=${playable.url}",
+                )
+            }
+        }
+    }
+
     companion object {
         private const val HIGH_SPEC_FALLBACK_MAX_ATTEMPTS = 3
         private const val EXIT_TRACE_PREFIX = "EXIT_TRACE"
@@ -3573,6 +4031,7 @@ class PlayerActivity : BaseActivity() {
         internal const val HOLD_SCRUB_SHORT_SPEED_MS_PER_S = 4_000L
         private const val BACK_DOUBLE_PRESS_WINDOW_MS = 2_500L
         internal const val TOUCH_LOCK_UI_HIDE_DELAY_MS = 2_500L
+        internal const val TOUCH_GESTURE_EXCLUDED_EDGE_RATIO = 0.03f
         internal const val TOUCH_GESTURE_EDGE_LONG_PRESS_THRESHOLD = 0.18f
         internal const val TOUCH_GESTURE_SIDE_VERTICAL_THRESHOLD = 0.32f
         internal const val TOUCH_GESTURE_DIRECTION_RATIO = 1.2f
@@ -3586,13 +4045,15 @@ class PlayerActivity : BaseActivity() {
         internal const val TOUCH_GESTURE_SEEK_MAX_FULL_WIDTH_MS = 4 * 60_000L
         internal const val TOUCH_GESTURE_MIN_BRIGHTNESS = 0.02f
         internal const val SEEK_HINT_HIDE_DELAY_MS = 900L
-        internal const val AUTO_NEXT_PREVIEW_WINDOW_MS = 2_000L
+        internal const val AUTO_NEXT_PREVIEW_WINDOW_MS = 5_000L
         internal const val AUTO_NEXT_TITLE_MAX_CHARS = 12
         internal const val SEEK_OSD_HIDE_DELAY_MS = 1_500L
         internal const val AUTO_SKIP_START_WINDOW_MS = 1_000L
         internal const val AUTO_SKIP_DELAY_MS = 2_000L
         internal const val AUTO_RESUME_BACK_RESTART_WINDOW_MS = 3_000L
+        internal const val KEY_STEP_SEEK_COMMIT_DELAY_MS = 450L
         internal const val KEY_SCRUB_END_DELAY_MS = 800L
+        internal const val KEY_SEEK_BUFFERING_POST_COMMIT_GRACE_MS = 250L
         private const val DANMAKU_DEFAULT_SEGMENT_MS = 6 * 60 * 1000
         private const val DANMAKU_PREFETCH_SEGMENTS = 2
         private const val DANMAKU_PREFETCH_INTERVAL_MS = 1_000L
@@ -3703,6 +4164,28 @@ class PlayerActivity : BaseActivity() {
                     setSurface(renderView.surfaceTexture)
                 }
             }
+        }
+    }
+
+    private fun applyPostInflateCompatUi() {
+        if (Build.VERSION.SDK_INT >= 21) {
+            val tint = ContextCompat.getColorStateList(this, R.color.blbl_text)
+            binding.progressBuffering.indeterminateTintList = tint
+            binding.progressBuffering.indeterminateTintMode = android.graphics.PorterDuff.Mode.SRC_IN
+            binding.videoShotPreview.clipToOutline = true
+            binding.videoShotPreview.elevation = resources.getDimension(R.dimen.player_videoshot_preview_elevation)
+            binding.commentImageViewer.elevation = 20f * resources.displayMetrics.density
+            binding.btnUpQuickProfile.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.btnUpQuickFollow.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.tabPageList.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.tabPartsList.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.tabRecommendList.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.chipCommentSortHot.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+            binding.chipCommentSortNew.stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(this, R.animator.blbl_focus_scale)
+        }
+        if (Build.VERSION.SDK_INT >= 26) {
+            binding.root.defaultFocusHighlightEnabled = false
+            binding.commentImageViewer.defaultFocusHighlightEnabled = false
         }
     }
 }

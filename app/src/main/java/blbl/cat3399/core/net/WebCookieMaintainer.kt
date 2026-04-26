@@ -8,8 +8,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.Cookie
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.RequestBody
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 import java.security.KeyFactory
@@ -82,10 +81,12 @@ object WebCookieMaintainer {
                     .toString()
 
             val body =
-                JSONObject()
-                    .put("payload", jsonData)
-                    .toString()
-                    .toRequestBody("application/json; charset=utf-8".toMediaType())
+                RequestBody.create(
+                    "application/json; charset=utf-8".toMediaTypeCompat(),
+                    JSONObject()
+                        .put("payload", jsonData)
+                        .toString(),
+                )
 
             val cookie =
                 buildList {
@@ -188,7 +189,7 @@ object WebCookieMaintainer {
         val nowMs = System.currentTimeMillis()
         val epochDay = nowMs / 86_400_000L
         val existing = BiliClient.cookies.getCookie("bili_ticket")
-        if (existing != null && existing.expiresAt - nowMs > 6 * 60 * 60 * 1000) return
+        if (existing != null && existing.cookieExpiresAt() - nowMs > 6 * 60 * 60 * 1000) return
         if (BiliClient.prefs.biliTicketCheckedEpochDay == epochDay) return
         BiliClient.prefs.biliTicketCheckedEpochDay = epochDay
 
@@ -210,7 +211,7 @@ object WebCookieMaintainer {
                 BiliClient.requestString(
                     url,
                     method = "POST",
-                    body = ByteArray(0).toRequestBody(null),
+                    body = RequestBody.create(null, ByteArray(0)),
                 ).let { raw -> withContext(Dispatchers.Default) { JSONObject(raw) } }
             val data = json.optJSONObject("data") ?: JSONObject()
             val ticket = data.optString("ticket", "").trim()
