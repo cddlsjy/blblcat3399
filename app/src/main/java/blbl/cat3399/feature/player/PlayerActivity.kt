@@ -105,6 +105,9 @@ import java.lang.ref.WeakReference
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 
 class PlayerActivity : BaseActivity() {
     private data class ViewPaddingState(
@@ -2021,30 +2024,32 @@ class PlayerActivity : BaseActivity() {
 
             KeyEvent.KEYCODE_DPAD_UP -> {
                 if (isSidePanelVisible()) return super.dispatchKeyEvent(event)
-                // TV-style shortcut: when OSD is hidden, UP directly opens the playlist (video list)
-                // instead of first bringing up the OSD.
-                if (osdMode == OsdMode.Hidden) {
-                    if (showListPanelFromShortcut()) return true
-                }
-                setControlsVisible(true)
-                if (!binding.seekProgress.isFocused) {
-                    focusSeekBar()
-                    return true
-                }
+                if (osdMode == OsdMode.Full && binding.seekProgress.isFocused) return super.dispatchKeyEvent(event)
+                if (osdMode == OsdMode.Full && (binding.topBar.hasFocus() || binding.bottomBar.hasFocus())) return super.dispatchKeyEvent(event)
+                playPrevByPlaybackMode(userInitiated = true)
+                return true
             }
 
             KeyEvent.KEYCODE_DPAD_DOWN -> {
                 if (isSidePanelVisible()) return super.dispatchKeyEvent(event)
-                if (binding.seekProgress.isFocused) {
-                    setControlsVisible(true)
-                    focusFirstControl()
-                    return true
-                }
-                if (osdMode == OsdMode.Hidden) {
-                    setControlsVisible(true)
-                    focusDownKeyOsdTargetControl()
-                    return true
-                }
+                if (osdMode == OsdMode.Full && binding.seekProgress.isFocused) return super.dispatchKeyEvent(event)
+                if (osdMode == OsdMode.Full && (binding.topBar.hasFocus() || binding.bottomBar.hasFocus())) return super.dispatchKeyEvent(event)
+                playNextByPlaybackMode(userInitiated = true)
+                return true
+            }
+
+            KeyEvent.KEYCODE_CHANNEL_UP,
+            KeyEvent.KEYCODE_PAGE_UP -> {
+                if (isSidePanelVisible()) return super.dispatchKeyEvent(event)
+                playPrevByPlaybackMode(userInitiated = true)
+                return true
+            }
+
+            KeyEvent.KEYCODE_CHANNEL_DOWN,
+            KeyEvent.KEYCODE_PAGE_DOWN -> {
+                if (isSidePanelVisible()) return super.dispatchKeyEvent(event)
+                playNextByPlaybackMode(userInitiated = true)
+                return true
             }
 
             KeyEvent.KEYCODE_DPAD_CENTER,
@@ -2555,6 +2560,41 @@ class PlayerActivity : BaseActivity() {
         updateDanmakuButton()
         updateUpButton()
         updatePlaylistControls()
+        val swipeThreshold = ViewConfiguration.get(this).scaledTouchSlop * 4
+        val swipeVelocityThreshold = ViewConfiguration.get(this).scaledMinimumFlingVelocity * 2
+        val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                if (isSidePanelVisible()) return false
+                if (e1 == null) return false
+                val dy = e1.y - e2.y
+                val dx = e1.x - e2.x
+                if (abs(dy) > abs(dx) && abs(dy) > swipeThreshold && abs(velocityY) > swipeVelocityThreshold) {
+                    val isUp = dy > 0
+                    if (isUp) {
+                        playPrevByPlaybackMode(userInitiated = true)
+                    } else {
+                        playNextByPlaybackMode(userInitiated = true)
+                    }
+                    return true
+                }
+                return false
+            }
+        })
+
+        val touchListener = View.OnTouchListener { v, event ->
+            val handled = detector.onTouchEvent(event)
+            if (event.action == MotionEvent.ACTION_UP && handled) v.performClick()
+            handled
+        }
+        binding.playerView.setOnTouchListener(touchListener)
+        binding.ijkAspect.setOnTouchListener(touchListener)
         // Do not auto-show OSD when opening the player; user interaction will bring it up.
         setControlsVisible(false)
         startProgressLoop()
