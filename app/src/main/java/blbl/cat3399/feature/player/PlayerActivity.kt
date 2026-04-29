@@ -18,7 +18,10 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.TextureView
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup.MarginLayoutParams
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.widget.FrameLayout
 import android.widget.SeekBar
 import androidx.constraintlayout.widget.ConstraintSet
@@ -2094,6 +2097,44 @@ class PlayerActivity : BaseActivity() {
         if (showHint) {
             showSeekHint(if (willPlay) "播放" else "暂停", hold = false)
         }
+    }
+
+    private fun initTouchGestures() {
+        val swipeThreshold = ViewConfiguration.get(this).scaledTouchSlop * 4
+        val swipeVelocityThreshold = ViewConfiguration.get(this).scaledMinimumFlingVelocity * 2
+        val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                if (isSidePanelVisible()) return false
+                if (e1 == null) return false
+                val dy = e1.y - e2.y
+                val dx = e1.x - e2.x
+                if (abs(dy) > abs(dx) && abs(dy) > swipeThreshold && abs(velocityY) > swipeVelocityThreshold) {
+                    val isUp = dy > 0
+                    if (isUp) {
+                        playPrevByPlaybackMode(userInitiated = true)
+                    } else {
+                        playNextByPlaybackMode(userInitiated = true)
+                    }
+                    return true
+                }
+                return false
+            }
+        })
+
+        val touchListener = View.OnTouchListener { v, event ->
+            val handled = detector.onTouchEvent(event)
+            if (event.action == MotionEvent.ACTION_UP && handled) v.performClick()
+            handled
+        }
+        binding.playerView.setOnTouchListener(touchListener)
+        binding.ijkAspect.setOnTouchListener(touchListener)
     }
 
     private fun initControls(engine: BlblPlayerEngine) {
