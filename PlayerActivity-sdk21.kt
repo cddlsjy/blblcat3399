@@ -100,6 +100,9 @@ import java.lang.ref.WeakReference
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 
 class PlayerActivity : BaseActivity() {
     override fun shouldRecreateOnUiScaleChange(): Boolean = true
@@ -1609,52 +1612,6 @@ class PlayerActivity : BaseActivity() {
 
         if (event.action != KeyEvent.ACTION_DOWN) return super.dispatchKeyEvent(event)
 
-        // ========== 遥控器方向键切集功能：播放中 + 全屏无遮挡 ==========
-        if (event.action == KeyEvent.ACTION_DOWN) {  // 仅处理按下事件
-            val engine = player ?: return super.dispatchKeyEvent(event)
-            // 严格条件：视频正在播放，且没有任何UI覆盖
-            if (engine.isPlaying &&
-                osdMode == OsdMode.Hidden &&                      // OSD 控制栏未显示
-                !transientSeekOsdVisible &&                      // 瞬时进度条未显示
-                !isSidePanelVisible() &&                         // 设置/评论面板关闭
-                !isBottomCardPanelVisible() &&                    // 底部卡片面板关闭
-                !isCommentImageViewerVisible() &&                 // 评论图片查看器关闭
-                autoResumeHintVisible.not() &&                   // 续播提示未显示（重要）
-                autoSkipHintVisible.not() &&                     // 自动跳过提示未显示
-                autoNextHintVisible.not()                        // 自动连播提示未显示
-            ) {
-                // 检查当前是否有可切换的列表素材
-                val hasPartsList = partsListItems.size > 1 || hasMorePlaylistItems(PlayerVideoListKind.PARTS)
-                val hasPageList = pageListItems.size > 1 || hasMorePlaylistItems(PlayerVideoListKind.PAGE)
-                val usePlaylist = hasPartsList || hasPageList
-
-                when (keyCode) {
-                    KeyEvent.KEYCODE_DPAD_LEFT,
-                    KeyEvent.KEYCODE_DPAD_UP -> {
-                        if (usePlaylist) {
-                            playPrevByPlaybackMode(userInitiated = true)
-                        } else {
-                            // 无多集列表，用播放历史
-                            loadRemoteHistoryIfNeeded()
-                            playRemoteHistoryAdjacent(-1)
-                        }
-                        return true
-                    }
-                    KeyEvent.KEYCODE_DPAD_RIGHT,
-                    KeyEvent.KEYCODE_DPAD_DOWN -> {
-                        if (usePlaylist) {
-                            playNextByPlaybackMode(userInitiated = true)
-                        } else {
-                            loadRemoteHistoryIfNeeded()
-                            playRemoteHistoryAdjacent(+1)
-                        }
-                        return true
-                    }
-                }
-            }
-        }
-        // ========== 方向键切集功能结束 ==========
-
         if (isInteractionKey(keyCode)) noteUserInteraction()
 
         if (dispatchPlayerCustomShortcutIfNeeded(event)) return true
@@ -2143,7 +2100,41 @@ class PlayerActivity : BaseActivity() {
     }
 
     private fun initControls(engine: BlblPlayerEngine) {
-        initTouchGestures()
+        val swipeThreshold = ViewConfiguration.get(this).scaledTouchSlop * 4
+        val swipeVelocityThreshold = ViewConfiguration.get(this).scaledMinimumFlingVelocity * 2
+        val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                if (isSidePanelVisible()) return false
+                if (e1 == null) return false
+                val dy = e1.y - e2.y
+                val dx = e1.x - e2.x
+                if (abs(dy) > abs(dx) && abs(dy) > swipeThreshold && abs(velocityY) > swipeVelocityThreshold) {
+                    val isUp = dy > 0
+                    if (isUp) {
+                        playPrevByPlaybackMode(userInitiated = true)
+                    } else {
+                        playNextByPlaybackMode(userInitiated = true)
+                    }
+                    return true
+                }
+                return false
+            }
+        })
+
+        val touchListener = View.OnTouchListener { v, event ->
+            val handled = detector.onTouchEvent(event)
+            if (event.action == MotionEvent.ACTION_UP && handled) v.performClick()
+            handled
+        }
+        binding.playerView.setOnTouchListener(touchListener)
+        binding.ijkAspect.setOnTouchListener(touchListener)
 
         binding.btnAdvanced.setOnClickListener {
             toggleSettingsPanel()

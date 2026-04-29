@@ -346,12 +346,6 @@ internal fun PlayerActivity.startPlayback(
         engine = engine,
         preservePartsList = startFromList == PlayerVideoListKind.PARTS,
     )
-
-    // 重置遥控器方向键历史切集缓存
-    remoteHistoryItems = emptyList()
-    remoteHistoryIndex = -1
-    remoteHistoryJob?.cancel()
-    remoteHistoryJob = null
     updateTopTitleUi(placeholder = initialTitle)
 
     updatePlaylistControls()
